@@ -325,7 +325,7 @@ export const ProductDetails: FC<ProductDetailsProps> = ({
                         <NumberField value={quantity} minValue={1} onChange={setQuantity}>
                             <Label className="text-sm font-medium text-primary">Quantity</Label>
                             <Group className="mt-3 flex h-10 w-max items-center overflow-hidden rounded-lg border border-gray-200">
-                                <SpinButton slot="decrement" className={spinButtonStyles}>−</SpinButton>
+                                <SpinButton slot="decrement" className={cx(spinButtonStyles, "border-r border-gray-200")}>−</SpinButton>
                                 <NumberInput className="w-12 bg-transparent text-center text-sm font-medium text-primary outline-none" />
                                 <SpinButton slot="increment" className={cx(spinButtonStyles, "border-l border-gray-200")}>+</SpinButton>
                             </Group>

@@ -79,7 +79,7 @@ export const CartItem: FC<CartItemProps> = ({ item, onRemove, onQuantityChange }
                     >
                         <Label className="sr-only">Quantity</Label>
                         <Group className="flex h-8 w-max items-center overflow-hidden rounded-lg border border-gray-200">
-                            <SpinButton slot="decrement" className={spinButtonStyles}>
+                            <SpinButton slot="decrement" className={cx(spinButtonStyles, "border-r border-gray-200")}>
                                 −
                             </SpinButton>
                             <NumberInput className="w-10 bg-transparent text-center text-sm font-medium text-primary outline-none" />
