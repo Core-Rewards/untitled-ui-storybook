@@ -71,3 +71,29 @@ input[type="search"]::-webkit-search-cancel-button {
     0%   { transform: translate(-50%, -50%) scale(0.8); opacity: 1; }
     100% { transform: translate(-50%, calc(-50% - 64px)) scale(1.4); opacity: 0; }
 }
+
+/* Quiz / Streaks — feedback panels and reward reveals rise into place. */
+@keyframes quiz-rise-in {
+    0%   { transform: translateY(8px); opacity: 0; }
+    100% { transform: translateY(0);   opacity: 1; }
+}
+
+/* Streak milestone marker pops when it is earned. */
+@keyframes streak-pop {
+    0%   { transform: scale(1); }
+    45%  { transform: scale(1.28); }
+    100% { transform: scale(1); }
+}
+
+/* Halo that radiates out of a milestone marker on the month it unlocks. */
+@keyframes streak-halo {
+    0%   { transform: scale(0.9); opacity: 0.45; }
+    100% { transform: scale(2.1); opacity: 0; }
+}
+
+/* Gentle breathing on the month currently in play. Drives a halo element rather
+   than box-shadow, which would collide with Tailwind's `ring` utility. */
+@keyframes streak-pulse {
+    0%, 100% { transform: scale(0.95); opacity: 0.3; }
+    50%      { transform: scale(1.55); opacity: 0; }
+}
