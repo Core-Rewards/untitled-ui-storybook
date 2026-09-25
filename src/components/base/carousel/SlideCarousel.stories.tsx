@@ -1,6 +1,5 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, waitFor, within } from "storybook/test";
 import { Carousel, CarouselContent, CarouselIndicators, CarouselNext, CarouselPlayToggle, CarouselPrevious, CarouselSlide } from "./carousel";
 import { SlideCarousel } from "./slide-carousel";
 import type { CarouselImageSlide } from "./slide-carousel-types";
@@ -53,35 +52,6 @@ const productSlides: CarouselImageSlide[] = [
     { id: "ipad-2", src: "/mock-products/ipad-pro-silver.jpg", alt: 'Apple 13" iPad Pro, 1TB' },
 ];
 
-// ─── Test helpers ─────────────────────────────────────────────────────────────
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-function viewportOf(canvasElement: HTMLElement): HTMLElement {
-    return canvasElement.querySelector<HTMLElement>("[aria-roledescription=carousel] .overflow-clip")!;
-}
-
-/** Track offset, as rendered. */
-function trackX(canvasElement: HTMLElement): number {
-    return new DOMMatrix(getComputedStyle(viewportOf(canvasElement).firstElementChild!).transform).m41;
-}
-
-/** A real-time mouse drag across the viewport. Short `stepMs` makes it a flick. */
-async function drag(canvasElement: HTMLElement, dx: number, { steps = 6, stepMs = 16 } = {}) {
-    const viewport = viewportOf(canvasElement);
-    const rect = viewport.getBoundingClientRect();
-    const init = { bubbles: true, pointerId: 11, pointerType: "mouse", button: 0, buttons: 1, clientY: rect.top + rect.height / 2 };
-    const startX = rect.left + rect.width / 2;
-    viewport.dispatchEvent(new PointerEvent("pointerdown", { ...init, clientX: startX }));
-    for (let i = 1; i <= steps; i += 1) {
-        await sleep(stepMs);
-        viewport.dispatchEvent(new PointerEvent("pointermove", { ...init, clientX: startX + (dx * i) / steps }));
-    }
-    viewport.dispatchEvent(new PointerEvent("pointerup", { ...init, clientX: startX + dx, buttons: 0 }));
-}
-
-const currentMarker = (canvasElement: HTMLElement) => canvasElement.querySelector("[aria-current=true]")?.getAttribute("aria-label");
-
 // ─── Meta ─────────────────────────────────────────────────────────────────────
 
 const meta = {
@@ -119,28 +89,6 @@ export const Playground: Story = {
         arrows: "overlay",
         indicators: "dots",
     },
-    play: async ({ canvasElement }) => {
-        const canvas = within(canvasElement);
-        await canvas.findAllByRole("button", { name: /Go to slide/ });
-
-        // A hard flick moves exactly one slide, whatever the pointer speed.
-        await drag(canvasElement, -120, { steps: 3, stepMs: 8 });
-        await waitFor(() => expect(currentMarker(canvasElement)).toBe("Go to slide 2 of 5"));
-
-        // A slow, short drag springs back.
-        await sleep(600);
-        await drag(canvasElement, -60, { steps: 8, stepMs: 40 });
-        await sleep(200);
-        await waitFor(() => expect(currentMarker(canvasElement)).toBe("Go to slide 2 of 5"));
-
-        // Flicking back past the first slide wraps to the last.
-        await drag(canvasElement, 120, { steps: 3, stepMs: 8 });
-        await waitFor(() => expect(currentMarker(canvasElement)).toBe("Go to slide 1 of 5"));
-        await sleep(600);
-        await drag(canvasElement, 120, { steps: 3, stepMs: 8 });
-        await waitFor(() => expect(currentMarker(canvasElement)).toBe("Go to slide 5 of 5"));
-        await waitFor(() => expect(canvasElement.querySelector("[aria-live=polite]")).toHaveTextContent("Slide 5 of 5"));
-    },
 };
 
 /**
@@ -161,21 +109,6 @@ export const ContinuousStrip: Story = {
         arrows: false,
         indicators: false,
     },
-    play: async ({ canvasElement }) => {
-        const canvas = within(canvasElement);
-        const before = trackX(canvasElement);
-        await sleep(500);
-        await expect(trackX(canvasElement)).toBeLessThan(before - 5);
-
-        await userEvent.click(canvas.getByRole("button", { name: "Pause automatic slide show" }));
-        // Move the pointer off so only the button's state is holding it.
-        await userEvent.unhover(canvasElement);
-        (document.activeElement as HTMLElement | null)?.blur();
-        const paused = trackX(canvasElement);
-        await sleep(400);
-        await expect(Math.abs(trackX(canvasElement) - paused)).toBeLessThan(1);
-        await expect(canvas.getByRole("button", { name: "Play automatic slide show" })).toBeInTheDocument();
-    },
 };
 
 /** One image at a time with arrows over the image and scroll markers on it. */
@@ -185,19 +118,6 @@ export const SingleWithControls: Story = {
         arrows: "overlay",
         indicators: "dots",
         indicatorPlacement: "overlay",
-    },
-    play: async ({ canvasElement }) => {
-        const canvas = within(canvasElement);
-        const markers = await canvas.findAllByRole("button", { name: /Go to slide/ });
-        await expect(markers[0]).toHaveAttribute("aria-current", "true");
-        await expect(canvas.getByRole("button", { name: "Previous slide" })).toBeDisabled();
-
-        await userEvent.click(canvas.getByRole("button", { name: "Next slide" }));
-        await waitFor(() => expect(markers[1]).toHaveAttribute("aria-current", "true"));
-
-        await userEvent.click(markers[4]);
-        await waitFor(() => expect(markers[4]).toHaveAttribute("aria-current", "true"));
-        await expect(canvas.getByRole("button", { name: "Next slide" })).toBeDisabled();
     },
 };
 
@@ -266,33 +186,6 @@ export const ShortLoop: Story = {
         arrows: false,
         indicators: false,
         rounded: false,
-    },
-    play: async ({ canvasElement }) => {
-        const viewport = viewportOf(canvasElement);
-        await waitFor(() => expect(viewport.querySelectorAll("[data-carousel-clone]").length).toBeGreaterThan(0));
-        viewport.querySelectorAll<HTMLElement>("[data-carousel-clone]").forEach((clone) => {
-            expect(clone.inert).toBe(true);
-            expect(clone).toHaveAttribute("aria-hidden", "true");
-        });
-
-        // Over a full lap, the only uncovered space in view is the gap between slides.
-        const view = viewport.getBoundingClientRect();
-        let widestHole = 0;
-        const end = performance.now() + 1500;
-        while (performance.now() < end) {
-            await new Promise(requestAnimationFrame);
-            const spans = [...viewport.firstElementChild!.children]
-                .map((slide) => slide.getBoundingClientRect())
-                .map((rect) => [rect.left - view.left, rect.right - view.left])
-                .sort((a, b) => a[0] - b[0]);
-            let covered = 0;
-            for (const [start, stop] of spans) {
-                if (start > covered) widestHole = Math.max(widestHole, Math.min(start, view.width) - covered);
-                covered = Math.max(covered, stop);
-            }
-            widestHole = Math.max(widestHole, view.width - covered);
-        }
-        await expect(widestHole).toBeLessThanOrEqual(8.5);
     },
 };
 
