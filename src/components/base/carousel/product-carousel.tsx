@@ -3,6 +3,7 @@ import type { CSSProperties, FC, KeyboardEvent, MouseEvent, ReactNode } from "re
 import { mod, ring, shortestDelta, visibleHalf } from "@/components/base/hero-banner/hero-banner-geometry";
 import { cx } from "@/utils/cx";
 import type { CarouselProduct, ProductCarouselProps } from "./carousel-types";
+import { usePrefersReducedMotion } from "./use-prefers-reduced-motion";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -130,20 +131,6 @@ const cardCaptionStyles = "flex h-22 max-md:h-28 w-full flex-col justify-start g
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
 const defaultFormatPoints = (points: number) => `${points.toLocaleString("en-US")} points`;
-
-function usePrefersReducedMotion(): boolean {
-    const [reduced, setReduced] = useState(false);
-
-    useEffect(() => {
-        const query = window.matchMedia("(prefers-reduced-motion: reduce)");
-        const sync = () => setReduced(query.matches);
-        sync();
-        query.addEventListener("change", sync);
-        return () => query.removeEventListener("change", sync);
-    }, []);
-
-    return reduced;
-}
 
 /** Square image well, shared by the real card and its skeleton. */
 const ImageWell: FC<{ children: ReactNode }> = ({ children }) => (
