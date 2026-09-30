@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { fn } from "storybook/test";
 import { RadioGroup } from "react-aria-components";
 import type { CartItemType } from "@/components/base/shopping-cart/cart-item";
 import { AddressCard } from "./address-card";
@@ -128,9 +129,9 @@ const meta = {
         layout: "padded",
     },
     tags: ["autodocs"],
-    argTypes: {
-        onAddAddress: { action: "onAddAddress" },
-        onConfirmOrder: { action: "onConfirmOrder" },
+    args: {
+        onAddAddress: fn(),
+        onConfirmOrder: fn(),
     },
 } satisfies Meta<typeof CheckoutPage>;
 
@@ -243,9 +244,9 @@ const addressFormMeta = {
     component: AddressForm,
     parameters: { layout: "padded" },
     tags: ["autodocs"],
-    argTypes: {
-        onSave: { action: "onSave" },
-        onCancel: { action: "onCancel" },
+    args: {
+        onSave: fn(),
+        onCancel: fn(),
     },
 } satisfies Meta<typeof AddressForm>;
 
@@ -256,7 +257,9 @@ export const AddressFormEmpty: StoryObj<typeof addressFormMeta> = {
             <AddressForm {...args} />
         </div>
     ),
-    args: {},
+    args: {
+        ...addressFormMeta.args,
+    },
 };
 
 /** Pre-filled form — for editing an existing address. */
@@ -267,8 +270,8 @@ export const AddressFormPrefilled: StoryObj<typeof addressFormMeta> = {
         </div>
     ),
     args: {
+        ...addressFormMeta.args,
         initialValues: sampleAddresses[0],
-        onCancel: undefined, // supplied via argTypes action
     },
 };
 
@@ -279,9 +282,9 @@ const addressCardMeta = {
     component: AddressCard,
     parameters: { layout: "padded" },
     tags: ["autodocs"],
-    argTypes: {
-        onEdit: { action: "onEdit" },
-        onDelete: { action: "onDelete" },
+    args: {
+        onEdit: fn(),
+        onDelete: fn(),
     },
 } satisfies Meta<typeof AddressCard>;
 
@@ -295,6 +298,7 @@ export const AddressCardSelected: StoryObj<typeof addressCardMeta> = {
         </div>
     ),
     args: {
+        ...addressCardMeta.args,
         address: sampleAddresses[0],
     },
 };
@@ -309,6 +313,7 @@ export const AddressCardUnselected: StoryObj<typeof addressCardMeta> = {
         </div>
     ),
     args: {
+        ...addressCardMeta.args,
         address: sampleAddresses[1],
     },
 };
@@ -325,6 +330,7 @@ export const AddressCardGroup: StoryObj<typeof addressCardMeta> = {
         </div>
     ),
     args: {
+        ...addressCardMeta.args,
         address: sampleAddresses[0],
     },
 };

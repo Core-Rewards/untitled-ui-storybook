@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { fn } from "storybook/test";
 import { ShoppingBag01 } from "@untitledui/icons";
 import { Button } from "@/components/base/buttons/button";
 import { CartDrawer } from "./cart-drawer";
@@ -75,10 +76,12 @@ const meta = {
         layout: "fullscreen",
     },
     tags: ["autodocs"],
-    argTypes: {
-        onRemoveItem: { action: "onRemoveItem" },
-        onQuantityChange: { action: "onQuantityChange" },
-        onCheckout: { action: "onCheckout" },
+    args: {
+        isOpen: false,
+        onClose: fn(),
+        onRemoveItem: fn(),
+        onQuantityChange: fn(),
+        onCheckout: fn(),
     },
 } satisfies Meta<typeof CartDrawer>;
 
