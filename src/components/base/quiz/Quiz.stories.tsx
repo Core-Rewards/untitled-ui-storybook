@@ -17,6 +17,10 @@ const augustQuestion: QuizQuestion = {
     correctOptionId: "four",
     explanation:
         "Milestones land at 4, 8 and 12 consecutive months. Every month you answer also earns a spin on the points wheel when you get the question right.",
+    resource: {
+        href: "https://www.acuitybrands.com",
+        label: "How quiz streaks work",
+    },
 };
 
 const septemberQuestion: QuizQuestion = {
@@ -31,6 +35,57 @@ const septemberQuestion: QuizQuestion = {
     ],
     correctOptionId: "all",
     explanation: "Your points work across the full catalog — travel, merchandise and gift cards are all fair game.",
+    resource: {
+        href: "https://www.acuitybrands.com",
+        label: "Browse the rewards catalog",
+    },
+};
+
+/** A question based on a portrait (9:16) YouTube Short. */
+const shortVideoQuestion: QuizQuestion = {
+    id: "2026-10-short",
+    period: "October 2026",
+    prompt: "Who is the Acuity Brands Contractor Select program built for?",
+    options: [
+        { id: "homeowners", label: "Homeowners" },
+        { id: "contractors", label: "Electrical contractors" },
+        { id: "distributors", label: "Distributors" },
+        { id: "architects", label: "Architects" },
+    ],
+    correctOptionId: "contractors",
+    explanation: "Contractor Select is Acuity Brands' program for the contractors who install their products.",
+    video: {
+        src: "https://www.youtube.com/embed/mJ9-ur5A1HY",
+        title: "Acuity Brands - Contractor Select",
+        orientation: "portrait",
+    },
+    resource: {
+        href: "https://www.acuitybrands.com",
+        label: "Learn more about Contractor Select",
+    },
+};
+
+/** A question based on a standard landscape (16:9) YouTube video. */
+const landscapeVideoQuestion: QuizQuestion = {
+    id: "2026-10-landscape",
+    period: "October 2026",
+    prompt: "How does Acuity Brands describe the Contractor Select line?",
+    options: [
+        { id: "custom", label: "Made-to-order specialty fixtures" },
+        { id: "everyday", label: "A portfolio of everyday products" },
+        { id: "smart-home", label: "A smart-home automation system" },
+        { id: "outdoor", label: "Outdoor lighting only" },
+    ],
+    correctOptionId: "everyday",
+    explanation: "Contractor Select is a portfolio of everyday lighting products that contractors can count on for common jobs.",
+    video: {
+        src: "https://www.youtube.com/embed/sGmj4SWmlEA",
+        title: "Acuity Brands - Contractor Select overview",
+    },
+    resource: {
+        href: "https://www.acuitybrands.com",
+        label: "Learn more about Contractor Select",
+    },
 };
 
 /** Larger rewards for a programme that wants to weight the back half of the year. */
@@ -47,6 +102,10 @@ const meta = {
     component: Quiz,
     parameters: {
         layout: "padded",
+    },
+    args: {
+        // Wide enough for a question's video to sit alongside it rather than above it.
+        className: "max-w-[1120px]",
     },
     tags: ["autodocs"],
     argTypes: {
@@ -225,5 +284,39 @@ export const SixMonthCycle: Story = {
                 { month: 6, reward: "2,000 points" },
             ],
         },
+    },
+};
+
+/**
+ * A question tied to a standard 16:9 video. The player takes half the card and
+ * sits alongside the question; narrower cards stack it above.
+ */
+export const WithVideo: Story = {
+    args: {
+        question: landscapeVideoQuestion,
+        streak: { currentStreak: 3 },
+        nextQuestionLabel: "A new question unlocks on November 1.",
+    },
+};
+
+/**
+ * A question tied to a vertical YouTube Short. The player is held to a
+ * phone-sized 9:16 column beside the question.
+ */
+export const WithShortVideo: Story = {
+    args: {
+        question: shortVideoQuestion,
+        streak: { currentStreak: 3 },
+        nextQuestionLabel: "A new question unlocks on November 1.",
+    },
+};
+
+/** A video question after answering: the video stays available alongside the verdict. */
+export const WithVideoAnswered: Story = {
+    args: {
+        question: shortVideoQuestion,
+        streak: { currentStreak: 4 },
+        answer: { selectedOptionId: "contractors", isCorrect: true },
+        spinsAvailable: 1,
     },
 };

@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { FC } from "react";
-import { Check, HelpCircle, X } from "@untitledui/icons";
-import { Label, Radio, RadioGroup } from "react-aria-components";
+import { Check, HelpCircle, LinkExternal01, PlayCircle, X } from "@untitledui/icons";
+import { Radio, RadioGroup } from "react-aria-components";
 import { Button } from "@/components/base/buttons/button";
 import { cx } from "@/utils/cx";
-import type { QuizAnswer, QuizQuestion } from "./quiz-types";
+import type { QuizAnswer, QuizQuestion, QuizVideo } from "./quiz-types";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -67,6 +67,47 @@ const Tag: FC<{ tone: keyof typeof tagTones; children: string }> = ({ tone, chil
     <span className={cx("shrink-0 rounded-full px-2 py-0.5 text-xs font-medium", tagTones[tone])}>{children}</span>
 );
 
+/**
+ * Embedded video the question is based on. Landscape plays at 16:9; portrait
+ * shorts are held to a phone-sized 9:16 column. On a narrow card the video sits
+ * above the question; once the card is wide enough it moves alongside it.
+ */
+const QuizVideoEmbed: FC<{ video: QuizVideo; showPrompt: boolean }> = ({ video, showPrompt }) => {
+    const isPortrait = video.orientation === "portrait";
+
+    return (
+        <div
+            className={cx(
+                "w-full shrink-0",
+                isPortrait ? "mx-auto max-w-[315px] @3xl:mx-0 @3xl:w-[315px]" : "@3xl:w-1/2",
+            )}
+        >
+            <div
+                className={cx(
+                    "overflow-hidden rounded-xl border border-gray-200 bg-gray-950",
+                    isPortrait ? "aspect-[9/16]" : "aspect-video",
+                )}
+            >
+                <iframe
+                    src={video.src}
+                    title={video.title}
+                    className="h-full w-full"
+                    loading="lazy"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    referrerPolicy="strict-origin-when-cross-origin"
+                    allowFullScreen
+                />
+            </div>
+            {showPrompt && (
+                <p className="mt-2 flex items-center gap-1.5 text-xs text-tertiary">
+                    <PlayCircle className="h-3.5 w-3.5 shrink-0" />
+                    Watch the video, then answer the question.
+                </p>
+            )}
+        </div>
+    );
+};
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export const QuizCard: FC<QuizCardProps> = ({
@@ -80,6 +121,7 @@ export const QuizCard: FC<QuizCardProps> = ({
     className,
 }) => {
     const [selectedOptionId, setSelectedOptionId] = useState("");
+    const promptId = useId();
 
     // A new question means a new month — drop any selection carried over from the
     // last one. Adjusting state during render is React's recommended alternative
@@ -125,132 +167,161 @@ export const QuizCard: FC<QuizCardProps> = ({
                 {isAnswered && <Tag tone="neutral">Answered</Tag>}
             </div>
 
-            <div className="px-5 py-5">
-
-                {/* ── Question + options ───────────────────────────────────── */}
-                <RadioGroup
-                    value={answer ? answer.selectedOptionId : selectedOptionId}
-                    onChange={setSelectedOptionId}
-                    isDisabled={isAnswered || isSubmitting}
-                    aria-label="Quiz answer"
+            <div className="@container px-5 py-5">
+                <div
+                    className={cx(
+                        question.video && "flex flex-col gap-5 @3xl:flex-row @3xl:items-start @3xl:gap-8",
+                    )}
                 >
-                    <Label className="block text-lg font-semibold leading-snug text-primary">{question.prompt}</Label>
 
-                    <div className="mt-5 flex flex-col gap-2.5">
-                        {question.options.map((option) => {
-                            const state = getOptionState(option.id);
+                    {/* ── Video ────────────────────────────────────────────────── */}
+                    {question.video && <QuizVideoEmbed video={question.video} showPrompt={!isAnswered} />}
 
-                            return (
-                                <Radio
-                                    key={option.id}
-                                    value={option.id}
-                                    className={({ isFocusVisible }) =>
-                                        cx(
-                                            "flex items-center gap-3 rounded-xl border px-4 py-3.5 text-left outline-none transition-colors duration-100",
-                                            isAnswered ? "cursor-default" : "cursor-pointer",
-                                            isFocusVisible && "ring-2 ring-brand-solid ring-offset-1",
-                                            optionStyles[state],
-                                        )
-                                    }
-                                >
-                                    {/* Selection indicator — becomes a verdict icon once answered */}
-                                    <span
-                                        aria-hidden="true"
-                                        className={cx(
-                                            "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors duration-150",
-                                            indicatorStyles[state],
-                                        )}
-                                    >
-                                        {state === "correct" && <Check className="h-3 w-3 text-white" />}
-                                        {state === "incorrect" && <X className="h-3 w-3 text-white" />}
-                                        {state === "selected" && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
-                                    </span>
+                    <div className="min-w-0 flex-1">
 
-                                    <span
-                                        className={cx(
-                                            "flex-1 text-sm font-medium",
-                                            state === "correct"
-                                                ? "text-success-700"
-                                                : state === "incorrect"
-                                                    ? "text-error-700"
-                                                    : "text-secondary",
-                                        )}
-                                    >
-                                        {option.label}
-                                    </span>
+                        {/* ── Question ─────────────────────────────────────────────── */}
+                        <h3 id={promptId} className="text-lg font-semibold leading-snug text-primary">
+                            {question.prompt}
+                        </h3>
 
-                                    {state === "correct" && <Tag tone="success">Correct answer</Tag>}
-                                    {state === "incorrect" && <Tag tone="error">Your answer</Tag>}
-                                </Radio>
-                            );
-                        })}
-                    </div>
-                </RadioGroup>
-
-                {/* ── Submit ───────────────────────────────────────────────── */}
-                {!isAnswered && (
-                    <div className="mt-6">
+                        {/* ── Resource ─────────────────────────────────────────────── */}
+                        {/* Kept outside the radio group so the link isn't read as part of the answer set. */}
                         <Button
-                            color="primary"
-                            size="lg"
-                            className="w-full"
-                            isDisabled={!selectedOptionId}
-                            isLoading={isSubmitting}
-                            onClick={handleSubmit}
+                            href={question.resource.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            color="link-color"
+                            size="sm"
+                            iconTrailing={LinkExternal01}
+                            className="mt-2"
                         >
-                            Submit Answer
+                            {question.resource.label}
                         </Button>
-                    </div>
-                )}
 
-                {/* ── Feedback ─────────────────────────────────────────────── */}
-                {answer && (
-                    <div
-                        className={cx(
-                            "mt-6 rounded-xl border p-4 motion-safe:animate-[quiz-rise-in_0.35s_ease-out]",
-                            answer.isCorrect ? "border-success-100 bg-success-50" : "border-warning-100 bg-warning-50",
+                        {/* ── Options ──────────────────────────────────────────────── */}
+                        <RadioGroup
+                            value={answer ? answer.selectedOptionId : selectedOptionId}
+                            onChange={setSelectedOptionId}
+                            isDisabled={isAnswered || isSubmitting}
+                            aria-labelledby={promptId}
+                        >
+                            <div className="mt-5 flex flex-col gap-2.5">
+                                {question.options.map((option) => {
+                                    const state = getOptionState(option.id);
+
+                                    return (
+                                        <Radio
+                                            key={option.id}
+                                            value={option.id}
+                                            className={({ isFocusVisible }) =>
+                                                cx(
+                                                    "flex items-center gap-3 rounded-xl border px-4 py-3.5 text-left outline-none transition-colors duration-100",
+                                                    isAnswered ? "cursor-default" : "cursor-pointer",
+                                                    isFocusVisible && "ring-2 ring-brand-solid ring-offset-1",
+                                                    optionStyles[state],
+                                                )
+                                            }
+                                        >
+                                            {/* Selection indicator — becomes a verdict icon once answered */}
+                                            <span
+                                                aria-hidden="true"
+                                                className={cx(
+                                                    "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors duration-150",
+                                                    indicatorStyles[state],
+                                                )}
+                                            >
+                                                {state === "correct" && <Check className="h-3 w-3 text-white" />}
+                                                {state === "incorrect" && <X className="h-3 w-3 text-white" />}
+                                                {state === "selected" && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
+                                            </span>
+
+                                            <span
+                                                className={cx(
+                                                    "flex-1 text-sm font-medium",
+                                                    state === "correct"
+                                                        ? "text-success-700"
+                                                        : state === "incorrect"
+                                                            ? "text-error-700"
+                                                            : "text-secondary",
+                                                )}
+                                            >
+                                                {option.label}
+                                            </span>
+
+                                            {state === "correct" && <Tag tone="success">Correct answer</Tag>}
+                                            {state === "incorrect" && <Tag tone="error">Your answer</Tag>}
+                                        </Radio>
+                                    );
+                                })}
+                            </div>
+                        </RadioGroup>
+
+                        {/* ── Submit ───────────────────────────────────────────────── */}
+                        {!isAnswered && (
+                            <div className="mt-6">
+                                <Button
+                                    color="primary"
+                                    size="lg"
+                                    className="w-full"
+                                    isDisabled={!selectedOptionId}
+                                    isLoading={isSubmitting}
+                                    onClick={handleSubmit}
+                                >
+                                    Submit Answer
+                                </Button>
+                            </div>
                         )}
-                        role="status"
-                    >
-                        <div className="flex gap-3">
+
+                        {/* ── Feedback ─────────────────────────────────────────────── */}
+                        {answer && (
                             <div
                                 className={cx(
-                                    "flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
-                                    answer.isCorrect ? "bg-success-600" : "bg-warning-600",
+                                    "mt-6 rounded-xl border p-4 motion-safe:animate-[quiz-rise-in_0.35s_ease-out]",
+                                    answer.isCorrect ? "border-success-100 bg-success-50" : "border-warning-100 bg-warning-50",
                                 )}
+                                role="status"
                             >
-                                {answer.isCorrect ? (
-                                    <Check className="h-3.5 w-3.5 text-white" />
-                                ) : (
-                                    <X className="h-3.5 w-3.5 text-white" />
-                                )}
+                                <div className="flex gap-3">
+                                    <div
+                                        className={cx(
+                                            "flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
+                                            answer.isCorrect ? "bg-success-600" : "bg-warning-600",
+                                        )}
+                                    >
+                                        {answer.isCorrect ? (
+                                            <Check className="h-3.5 w-3.5 text-white" />
+                                        ) : (
+                                            <X className="h-3.5 w-3.5 text-white" />
+                                        )}
+                                    </div>
+
+                                    <div className="flex-1">
+                                        <p
+                                            className={cx(
+                                                "text-sm font-semibold",
+                                                answer.isCorrect ? "text-success-700" : "text-warning-700",
+                                            )}
+                                        >
+                                            {answer.isCorrect ? "That's correct!" : "Not quite this time."}
+                                        </p>
+
+                                        {question.explanation && (
+                                            <p className="mt-1.5 text-sm leading-relaxed text-secondary">{question.explanation}</p>
+                                        )}
+
+                                        {!answer.isCorrect && (
+                                            <p className="mt-1.5 text-sm leading-relaxed text-secondary">
+                                                {streakRequiresCorrectAnswer
+                                                    ? "A correct answer is needed to extend your streak, so this month won't count. Try again next month."
+                                                    : "No spin this month, but taking part still counts — your streak keeps going."}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
-
-                            <div className="flex-1">
-                                <p
-                                    className={cx(
-                                        "text-sm font-semibold",
-                                        answer.isCorrect ? "text-success-700" : "text-warning-700",
-                                    )}
-                                >
-                                    {answer.isCorrect ? "That's correct!" : "Not quite this time."}
-                                </p>
-
-                                {question.explanation && (
-                                    <p className="mt-1.5 text-sm leading-relaxed text-secondary">{question.explanation}</p>
-                                )}
-
-                                {!answer.isCorrect && (
-                                    <p className="mt-1.5 text-sm leading-relaxed text-secondary">
-                                        {streakRequiresCorrectAnswer
-                                            ? "A correct answer is needed to extend your streak, so this month won't count. Try again next month."
-                                            : "No spin this month, but taking part still counts — your streak keeps going."}
-                                    </p>
-                                )}
-                            </div>
-                        </div>
+                        )}
                     </div>
-                )}
+                </div>
             </div>
 
             {/* ── Footer ───────────────────────────────────────────────────── */}

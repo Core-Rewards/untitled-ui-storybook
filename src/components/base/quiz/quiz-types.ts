@@ -7,6 +7,25 @@ export type QuizOption = {
     label: string;
 };
 
+export type QuizVideo = {
+    /** Embed URL for the video (e.g. "https://www.youtube.com/embed/<id>"). */
+    src: string;
+    /** Accessible title for the embedded player. */
+    title: string;
+    /**
+     * Frame shape. `"landscape"` is a standard 16:9 video; `"portrait"` is a 9:16
+     * short. Defaults to `"landscape"`.
+     */
+    orientation?: "landscape" | "portrait";
+};
+
+export type QuizResource = {
+    /** Where the link goes. Opens in a new tab so the quiz stays put. */
+    href: string;
+    /** Link text (e.g. "Read the Contractor Select guide"). */
+    label: string;
+};
+
 export type QuizQuestion = {
     /** Unique identifier for the question. Changing it resets the quiz to its unanswered state. */
     id: string;
@@ -20,6 +39,10 @@ export type QuizQuestion = {
     correctOptionId: string;
     /** Optional context revealed once the user answers, whether they were right or wrong. */
     explanation?: string;
+    /** Optional video the question is based on, shown with the prompt. */
+    video?: QuizVideo;
+    /** Link to the material the question is based on, shown under the prompt. Every question has one. */
+    resource: QuizResource;
 };
 
 export type QuizAnswer = {
