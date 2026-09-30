@@ -163,6 +163,42 @@ export const PreselectedRecipient: Story = {
     args: { defaultRecipient: participants[1] },
 };
 
+// ─── Dropdown ─────────────────────────────────────────────────────────────────
+
+/** Picks a reason from the dropdown. Its list renders in a portal, so options are found on the whole page. */
+const selectReason = async (canvasElement: HTMLElement, name: string) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: /Reason for recognition/ }));
+    await userEvent.click(await within(canvasElement.ownerDocument.body).findByRole("option", { name: new RegExp(`^${name}`) }));
+    return canvas;
+};
+
+/**
+ * Reasons in a dropdown, with the selected reason's image beside the form in place of the
+ * preview. Reasons without an image show their icon there instead.
+ */
+export const DropdownWithImage: Story = {
+    args: { valuePicker: "select", aside: "image" },
+    play: async ({ canvasElement }) => {
+        const canvas = await selectReason(canvasElement, "Leadership");
+        // React Aria keeps a hidden copy of the dropdown's contents in a <template>; ignore it.
+        const hints = canvas.getAllByText("Steps up and brings others along.").filter((element) => !element.closest("template"));
+        await expect(hints).toHaveLength(1);
+        // Shown once, in the image column, not again under the dropdown.
+        await expect(canvas.getAllByRole("img", { name: /presenter speaking/ })).toHaveLength(1);
+    },
+};
+
+/** Reasons in a dropdown with the form at full width. A reason's image shows under the dropdown. */
+export const DropdownFullWidth: Story = {
+    args: { valuePicker: "select", aside: "none" },
+    play: async ({ canvasElement }) => {
+        const canvas = await selectReason(canvasElement, "Teamwork");
+        await expect(canvas.getAllByRole("img", { name: /Colleagues working together/ })).toHaveLength(1);
+        await expect(canvas.queryByRole("region", { name: "Recognition preview" })).not.toBeInTheDocument();
+    },
+};
+
 // ─── Budget ───────────────────────────────────────────────────────────────────
 
 /** Presets above the remaining budget are disabled. */

@@ -69,6 +69,13 @@ export interface ManagerRecognitionProps {
     maxPoints?: number;
     /** Defaults to 500. */
     messageMaxLength?: number;
+    /** `cards` shows every reason as a selectable card. `select` lists them in a dropdown. Defaults to `cards`. */
+    valuePicker?: "cards" | "select";
+    /**
+     * What sits beside the form: `preview` shows what the recipient will receive, `image` shows the
+     * selected reason's image, and `none` lets the form fill the width. Defaults to `preview`.
+     */
+    aside?: "preview" | "image" | "none";
     /**
      * Sends the recognition. Return a promise to show a loading state; if it rejects, the form
      * keeps what was entered and shows an error. Update `budget` once the send succeeds.

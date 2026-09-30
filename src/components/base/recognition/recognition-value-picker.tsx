@@ -3,6 +3,8 @@ import { Star01 } from "@untitledui/icons";
 import { Radio as AriaRadio, RadioGroup as AriaRadioGroup } from "react-aria-components";
 import { Badge } from "@/components/base/badges/badge";
 import { Label } from "@/components/base/input/label";
+import { Select } from "@/components/base/select/select";
+import { SelectItem } from "@/components/base/select/select-item";
 import { FeaturedIcon } from "@/components/foundations/featured-icon/featured-icon";
 import { cx, sortCx } from "@/utils/cx";
 import type { RecognitionValue } from "./recognition-types";
@@ -25,7 +27,7 @@ const styles = sortCx({
         selected: "bg-brand-solid ring-transparent",
     },
     indicatorDot: "size-1.5 rounded-full bg-fg-white",
-    // Sized to confirm the choice without pushing the rest of the form down. The preview shows it large.
+    // Sized to confirm the choice without pushing the rest of the form down.
     image: "mt-3 h-40 w-auto max-w-full rounded-xl object-contain ring-1 ring-secondary",
 });
 
@@ -33,20 +35,62 @@ interface RecognitionValuePickerProps {
     values: RecognitionValue[];
     selectedId: string | null;
     onChange: (value: RecognitionValue) => void;
+    /** `cards` shows every value as a selectable card. `select` lists them in a dropdown. Defaults to `cards`. */
+    variant?: "cards" | "select";
+    /** Shows the selected value's image under the picker. Defaults to `true`. */
+    showImage?: boolean;
+    /** Extra classes for that image, such as hiding it when a layout shows the image elsewhere. */
+    imageClassName?: string;
     label?: string;
 }
 
-export const RecognitionValuePicker: FC<RecognitionValuePickerProps> = ({ values, selectedId, onChange, label = "Reason for recognition" }) => {
+export const RecognitionValuePicker: FC<RecognitionValuePickerProps> = ({
+    values,
+    selectedId,
+    onChange,
+    variant = "cards",
+    showImage = true,
+    imageClassName,
+    label = "Reason for recognition",
+}) => {
     const selected = values.find((value) => value.id === selectedId);
+    const handleChange = (id: unknown) => {
+        const value = values.find((item) => item.id === id);
+        if (value) onChange(value);
+    };
+
+    const image = showImage && selected?.image && <img src={selected.image.src} alt={selected.image.alt} className={cx(styles.image, imageClassName)} />;
+
+    if (variant === "select") {
+        return (
+            <div>
+                <Select
+                    label={label}
+                    placeholder="Select a reason"
+                    isRequired
+                    validationBehavior="aria"
+                    items={values.map((value) => ({
+                        id: value.id,
+                        label: value.name,
+                        icon: value.icon ?? Star01,
+                        supportingText: value.points !== undefined ? `${formatPoints(value.points)} pts` : undefined,
+                    }))}
+                    selectedKey={selectedId}
+                    onSelectionChange={handleChange}
+                    hint={selected?.description}
+                >
+                    {(item) => <SelectItem id={item.id} label={item.label} icon={item.icon} supportingText={item.supportingText} />}
+                </Select>
+                {image}
+            </div>
+        );
+    }
 
     return (
         <div>
             <AriaRadioGroup
                 value={selectedId}
-                onChange={(id) => {
-                    const value = values.find((item) => item.id === id);
-                    if (value) onChange(value);
-                }}
+                onChange={handleChange}
                 isRequired
                 validationBehavior="aria"
                 className="flex flex-col gap-1.5"
@@ -88,7 +132,7 @@ export const RecognitionValuePicker: FC<RecognitionValuePickerProps> = ({ values
                 </div>
             </AriaRadioGroup>
 
-            {selected?.image && <img src={selected.image.src} alt={selected.image.alt} className={styles.image} />}
+            {image}
         </div>
     );
 };

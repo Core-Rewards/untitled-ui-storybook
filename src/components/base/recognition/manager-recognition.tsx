@@ -8,6 +8,7 @@ import { RecognitionMessageField } from "./recognition-message-field";
 import { RecognitionPointsPicker } from "./recognition-points-picker";
 import { RecognitionPreview } from "./recognition-preview";
 import { RecognitionRecipientPicker } from "./recognition-recipient-picker";
+import { RecognitionValueImage } from "./recognition-value-image";
 import type { ManagerRecognitionProps, PointsSelection, RecognitionParticipant, RecognitionSubmission, RecognitionValue } from "./recognition-types";
 import { RecognitionValuePicker } from "./recognition-value-picker";
 import { DEFAULT_POINT_OPTIONS, firstName, formatPoints, pointsLabel, resolvePoints, selectionForSuggestedPoints, validatePoints } from "./recognition-utils";
@@ -15,8 +16,12 @@ import { DEFAULT_POINT_OPTIONS, firstName, formatPoints, pointsLabel, resolvePoi
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const styles = sortCx({
-    root: "@container",
-    layout: "grid grid-cols-1 gap-8 @4xl:grid-cols-[minmax(0,1fr)_22rem] @4xl:items-start",
+    // Named so the value picker, inside the form's own container, can react to the overall layout.
+    root: "@container/recognition",
+    layout: {
+        base: "grid grid-cols-1 gap-8",
+        withAside: "@4xl:grid-cols-[minmax(0,1fr)_22rem] @4xl:items-start",
+    },
     panel: "@container rounded-2xl border border-secondary bg-primary p-5 shadow-xs @xl:p-8",
     header: "flex flex-col gap-4 border-b border-secondary pb-6 @xl:flex-row @xl:items-start @xl:justify-between",
     title: "text-lg font-semibold text-primary",
@@ -31,7 +36,10 @@ const styles = sortCx({
     success: "flex flex-col items-center gap-4 py-10 text-center",
     successTitle: "text-lg font-semibold text-primary",
     successText: "max-w-sm text-sm text-tertiary",
-    preview: "@4xl:sticky @4xl:top-6",
+    aside: "@4xl:sticky @4xl:top-4",
+    // Beside the form on wide layouts. When the columns stack, the image shows under the picker instead.
+    asideImage: "hidden @4xl/recognition:block",
+    inlineImage: "@4xl/recognition:hidden",
 });
 
 type SentState = { submission: RecognitionSubmission; balanceAfter: number };
@@ -50,6 +58,8 @@ export const ManagerRecognition: FC<ManagerRecognitionProps> = ({
     minPoints = 1,
     maxPoints,
     messageMaxLength = 500,
+    valuePicker = "cards",
+    aside = "preview",
     onSend,
     title = "Recognize an associate",
     description = "Send points and a note to thank someone for living our values.",
@@ -108,7 +118,7 @@ export const ManagerRecognition: FC<ManagerRecognitionProps> = ({
 
     return (
         <div className={cx(styles.root, className)}>
-            <div className={styles.layout}>
+            <div className={cx(styles.layout.base, aside !== "none" && styles.layout.withAside)}>
                 <div className={styles.panel}>
                     <div className={styles.header}>
                         <div>
@@ -133,9 +143,7 @@ export const ManagerRecognition: FC<ManagerRecognitionProps> = ({
                                     {pointsLabel(sent.submission.points)} sent to {sent.submission.recipient.name}
                                 </h2>
                                 <p className={cx(styles.successText, "mt-1")}>
-                                    {sent.submission.sendEmail
-                                        ? `We emailed ${firstName(sent.submission.recipient.name)} your message.`
-                                        : "No email was sent."}{" "}
+                                    {sent.submission.sendEmail ? `We emailed ${firstName(sent.submission.recipient.name)} your message.` : "No email was sent."}{" "}
                                     Your remaining balance is {pointsLabel(sent.balanceAfter)}.
                                 </p>
                             </div>
@@ -153,7 +161,13 @@ export const ManagerRecognition: FC<ManagerRecognitionProps> = ({
                                 onChange={setRecipient}
                             />
 
-                            <RecognitionValuePicker values={values} selectedId={value?.id ?? null} onChange={handleValueChange} />
+                            <RecognitionValuePicker
+                                values={values}
+                                selectedId={value?.id ?? null}
+                                onChange={handleValueChange}
+                                variant={valuePicker}
+                                imageClassName={aside === "image" ? styles.inlineImage : undefined}
+                            />
 
                             <RecognitionPointsPicker
                                 options={pointOptions}
@@ -165,7 +179,12 @@ export const ManagerRecognition: FC<ManagerRecognitionProps> = ({
                                 hint={value?.points !== undefined ? `Suggested for ${value.name}: ${pointsLabel(value.points)}.` : undefined}
                             />
 
-                            <RecognitionMessageField value={message} onChange={setMessage} maxLength={messageMaxLength} recipientFirstName={recipientFirstName} />
+                            <RecognitionMessageField
+                                value={message}
+                                onChange={setMessage}
+                                maxLength={messageMaxLength}
+                                recipientFirstName={recipientFirstName}
+                            />
 
                             {status === "error" && (
                                 <div className={styles.error} role="alert">
@@ -189,16 +208,20 @@ export const ManagerRecognition: FC<ManagerRecognitionProps> = ({
                     )}
                 </div>
 
-                <RecognitionPreview
-                    className={styles.preview}
-                    senderName={senderName}
-                    recipient={preview.recipient}
-                    value={preview.value}
-                    points={preview.points}
-                    message={preview.message}
-                    sendEmail={preview.sendEmail}
-                    heading={sent ? "Sent" : "Preview"}
-                />
+                {aside === "image" && <RecognitionValueImage value={preview.value} className={cx(styles.aside, styles.asideImage)} />}
+
+                {aside === "preview" && (
+                    <RecognitionPreview
+                        className={styles.aside}
+                        senderName={senderName}
+                        recipient={preview.recipient}
+                        value={preview.value}
+                        points={preview.points}
+                        message={preview.message}
+                        sendEmail={preview.sendEmail}
+                        heading={sent ? "Sent" : "Preview"}
+                    />
+                )}
             </div>
         </div>
     );
