@@ -128,6 +128,9 @@ export const Discounted: Story = {
 // ─── Badge Variants Overview ──────────────────────────────────────────────────
 
 export const BadgeVariants: Story = {
+  args: {
+    product: sampleProduct,
+  },
   render: () => (
     <div className="grid w-full grid-cols-1 gap-6 sm:grid-cols-3 sm:grid-rows-1">
       <ProductCard product={{ ...sampleProduct, id: 'new', badge: 'New', badgeColor: 'success' }} />
@@ -143,6 +146,9 @@ export const BadgeVariants: Story = {
 // ─── Grid Layout ─────────────────────────────────────────────────────────────
 
 export const ProductGrid: Story = {
+  args: {
+    product: sampleProduct,
+  },
   render: () => (
     <div className="grid w-full grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {sampleProducts.map((product) => (
