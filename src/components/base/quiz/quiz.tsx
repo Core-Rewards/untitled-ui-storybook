@@ -120,6 +120,36 @@ export const Quiz: FC<QuizProps> = ({
     return (
         <div className={cx("mx-auto flex max-w-2xl flex-col gap-5", className)}>
 
+            {/* ── Spin reward ──────────────────────────────────────────────── */}
+            {totalSpins > 0 && (
+                <div
+                    className={cx(
+                        "flex flex-wrap items-center gap-4 rounded-xl border border-gray-200 p-4",
+                        justEarnedSpin && "motion-safe:animate-[quiz-rise-in_0.45s_ease-out]",
+                    )}
+                    role="status"
+                >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-700">
+                        <Zap className="h-5 w-5" />
+                    </div>
+
+                    <div className="min-w-40 flex-1">
+                        <p className="text-sm font-semibold text-primary">
+                            {justEarnedSpin ? "You earned a spin on the points wheel" : `${spinLabel} waiting for you`}
+                        </p>
+                        <p className="mt-0.5 text-sm text-tertiary">
+                            {justEarnedSpin && totalSpins > 1
+                                ? `That's ${spinLabel} banked — spin for a chance at bonus points.`
+                                : "Spin the wheel for a chance at bonus points."}
+                        </p>
+                    </div>
+
+                    <Button color="primary" size="md" onClick={onSpinWheel} className="shrink-0">
+                        Spin the Wheel
+                    </Button>
+                </div>
+            )}
+
             {/* ── Streak progress ──────────────────────────────────────────── */}
             <StreakTracker
                 currentStreak={displayStreak}
@@ -162,35 +192,6 @@ export const Quiz: FC<QuizProps> = ({
                 nextQuestionLabel={nextQuestionLabel}
             />
 
-            {/* ── Spin reward ──────────────────────────────────────────────── */}
-            {totalSpins > 0 && (
-                <div
-                    className={cx(
-                        "flex flex-wrap items-center gap-4 rounded-xl border border-gray-200 p-4",
-                        justEarnedSpin && "motion-safe:animate-[quiz-rise-in_0.45s_ease-out]",
-                    )}
-                    role="status"
-                >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-700">
-                        <Zap className="h-5 w-5" />
-                    </div>
-
-                    <div className="min-w-40 flex-1">
-                        <p className="text-sm font-semibold text-primary">
-                            {justEarnedSpin ? "You earned a spin on the points wheel" : `${spinLabel} waiting for you`}
-                        </p>
-                        <p className="mt-0.5 text-sm text-tertiary">
-                            {justEarnedSpin && totalSpins > 1
-                                ? `That's ${spinLabel} banked — spin for a chance at bonus points.`
-                                : "Spin the wheel for a chance at bonus points."}
-                        </p>
-                    </div>
-
-                    <Button color="primary" size="md" onClick={onSpinWheel} className="shrink-0">
-                        Spin the Wheel
-                    </Button>
-                </div>
-            )}
         </div>
     );
 };
