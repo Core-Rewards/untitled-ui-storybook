@@ -85,6 +85,7 @@ const meta = {
     tags: ["autodocs"],
     argTypes: {
         variant: { control: "inline-radio", options: ["default", "featured"] },
+        linkStyle: { control: "inline-radio", options: ["button", "card"] },
         category: { control: "select", options: Object.keys(contentCategories) },
         headingLevel: { control: "inline-radio", options: [2, 3, 4] },
         date: { control: "text" },
@@ -128,6 +129,42 @@ export const Video: Story = {
         <TwoUp>
             <ContentCard {...args} />
         </TwoUp>
+    ),
+};
+
+// ─── Card link ────────────────────────────────────────────────────────────────
+
+/**
+ * The alternate link style: the whole card is clickable, and an up-right arrow
+ * beside the title replaces the call-to-action button.
+ */
+export const CardLink: Story = {
+    args: { ...cards.news, linkStyle: "card" },
+    render: (args) => (
+        <TwoUp>
+            <ContentCard {...args} />
+            <ContentCard {...cards.event} linkStyle="card" image={undefined} />
+        </TwoUp>
+    ),
+};
+
+export const FeaturedCardLink: Story = {
+    args: { ...cards.resource, variant: "featured", linkStyle: "card" },
+};
+
+/** The content library layout with every card clickable. */
+export const ContentLibraryCardLinks: Story = {
+    args: cards.resource,
+    render: () => (
+        <div className="flex flex-col gap-8">
+            <ContentCard {...cards.resource} variant="featured" linkStyle="card" headingLevel={2} />
+            <TwoUp>
+                <ContentCard {...cards.news} linkStyle="card" />
+                <ContentCard {...cards.video} linkStyle="card" />
+                <ContentCard {...cards.promotion} linkStyle="card" image={undefined} />
+                <ContentCard {...cards["new-product"]} linkStyle="card" />
+            </TwoUp>
+        </div>
     ),
 };
 

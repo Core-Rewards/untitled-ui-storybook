@@ -1,26 +1,36 @@
 import type { FC } from "react";
-import { ArrowRight, Play } from "@untitledui/icons";
+import { ArrowRight, ArrowUpRight, Play } from "@untitledui/icons";
+import { Link as AriaLink } from "react-aria-components";
 import { Badge, type BadgeColor } from "@/components/base/badges/badge";
 import { Button } from "@/components/base/buttons/button";
 import { FeaturedIcon } from "@/components/foundations/featured-icon/featured-icon";
 import { cx, sortCx } from "@/utils/cx";
 import { formatContentDate, parseContentDate, resolveCategory } from "./content-card-categories";
-import type { ContentCardImage, ContentCardProps, ContentCardVariant, ContentCategory } from "./content-card-types";
+import type { ContentCardImage, ContentCardLinkStyle, ContentCardProps, ContentCardVariant, ContentCategory } from "./content-card-types";
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const styles = sortCx({
-    root: "@container h-full overflow-hidden rounded-2xl border border-secondary bg-primary shadow-xs",
+    root: {
+        base: "group/card @container relative h-full overflow-hidden rounded-2xl border border-secondary bg-primary shadow-xs",
+        // The title link stretches over the whole card, so show its focus ring on the card.
+        card: "outline-brand has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2",
+    },
     layout: {
         default: "flex h-full flex-col",
         featured: "flex h-full flex-col @3xl:flex-row",
     },
     media: {
-        base: "relative shrink-0 overflow-hidden",
+        base: "group/media relative shrink-0 overflow-hidden",
         default: "aspect-video",
         featured: "aspect-video @3xl:aspect-auto @3xl:min-h-80 @3xl:w-1/2",
     },
-    image: "absolute inset-0 size-full object-cover",
+    image: {
+        base: "absolute inset-0 size-full object-cover transition-transform duration-300 ease-out",
+        // Zoom follows whatever is clickable: the image itself, or the whole card.
+        button: "motion-safe:group-hover/media:scale-105",
+        card: "motion-safe:group-hover/card:scale-105",
+    },
     body: {
         base: "flex flex-1 flex-col",
         default: "p-6",
@@ -30,8 +40,19 @@ const styles = sortCx({
     date: "text-sm text-tertiary",
     title: {
         base: "mt-4 font-semibold text-primary",
-        default: "line-clamp-2 text-lg",
-        featured: "line-clamp-3 text-xl @3xl:text-display-xs",
+        default: "text-lg",
+        featured: "text-xl @3xl:text-display-xs",
+    },
+    titleClamp: {
+        default: "line-clamp-2",
+        featured: "line-clamp-3",
+    },
+    titleWithArrow: "flex items-start justify-between gap-4",
+    titleLink: "outline-none after:absolute after:inset-0",
+    titleArrow: {
+        base: "size-6 shrink-0 text-fg-quaternary transition duration-200 ease-out group-hover/card:text-fg-quaternary_hover motion-safe:group-hover/card:translate-x-0.5 motion-safe:group-hover/card:-translate-y-0.5",
+        default: "mt-0.5",
+        featured: "mt-0.5 @3xl:mt-1",
     },
     description: {
         base: "mt-2 text-md text-tertiary",
@@ -79,9 +100,10 @@ interface ContentCardMediaProps {
     variant: ContentCardVariant;
     category: ContentCategory;
     image?: ContentCardImage;
+    linkStyle: ContentCardLinkStyle;
 }
 
-const ContentCardMedia: FC<ContentCardMediaProps> = ({ variant, category, image }) => {
+const ContentCardMedia: FC<ContentCardMediaProps> = ({ variant, category, image, linkStyle }) => {
     if (!image) {
         return (
             <div className={cx(styles.media.base, styles.media[variant], "flex items-center justify-center", panelColors[category.color].bg)} aria-hidden="true">
@@ -95,7 +117,7 @@ const ContentCardMedia: FC<ContentCardMediaProps> = ({ variant, category, image 
 
     return (
         <div className={cx(styles.media.base, styles.media[variant], "bg-secondary")}>
-            <img src={image.src} alt={image.alt} className={styles.image} />
+            <img src={image.src} alt={image.alt} className={cx(styles.image.base, styles.image[linkStyle])} />
             {category.isVideo && (
                 <span className={styles.playButton} aria-hidden="true">
                     <Play className="ml-0.5 size-6 fill-current" />
@@ -116,6 +138,7 @@ export const ContentCard: FC<ContentCardProps> = ({
     image,
     date,
     ctaLabel,
+    linkStyle = "button",
     external = false,
     headingLevel = 3,
     className,
@@ -125,15 +148,16 @@ export const ContentCard: FC<ContentCardProps> = ({
     const formattedDate = parsedDate ? formatContentDate(parsedDate) : null;
     const Heading = `h${headingLevel}` as const;
     const CategoryIcon = category.icon;
+    const linkProps = external ? { target: "_blank", rel: "noopener noreferrer" } : {};
 
     return (
-        <article className={cx(styles.root, className)}>
+        <article className={cx(styles.root.base, linkStyle === "card" && styles.root.card, className)}>
             <div className={styles.layout[variant]}>
-                <ContentCardMedia variant={variant} category={category} image={image} />
+                <ContentCardMedia variant={variant} category={category} image={image} linkStyle={linkStyle} />
 
                 <div className={cx(styles.body.base, styles.body[variant])}>
                     <div className={styles.meta}>
-                        <Badge color={category.color} type="badge-color" size="md">
+                        <Badge color={category.color} type="pill-color" size="md">
                             <CategoryIcon className="size-3" aria-hidden="true" />
                             {category.label}
                         </Badge>
@@ -144,27 +168,32 @@ export const ContentCard: FC<ContentCardProps> = ({
                         )}
                     </div>
 
-                    <Heading className={cx(styles.title.base, styles.title[variant])}>{title}</Heading>
+                    {linkStyle === "card" ? (
+                        <Heading className={cx(styles.title.base, styles.title[variant], styles.titleWithArrow)}>
+                            <AriaLink href={href} className={styles.titleLink} {...linkProps}>
+                                <span className={styles.titleClamp[variant]}>{title}</span>
+                                {external && <span className="sr-only"> (opens in new tab)</span>}
+                            </AriaLink>
+                            <ArrowUpRight className={cx(styles.titleArrow.base, styles.titleArrow[variant])} aria-hidden="true" />
+                        </Heading>
+                    ) : (
+                        <Heading className={cx(styles.title.base, styles.title[variant], styles.titleClamp[variant])}>{title}</Heading>
+                    )}
 
                     {description && <p className={cx(styles.description.base, styles.description[variant])}>{description}</p>}
 
-                    <div className={cx(styles.cta.base, variant === "featured" && styles.cta.featured)}>
-                        <Button
-                            href={href}
-                            color="link-color"
-                            size="md"
-                            iconTrailing={ArrowRight}
-                            className={styles.ctaButton}
-                            {...(external && { target: "_blank", rel: "noopener noreferrer" })}
-                        >
-                            {ctaLabel ?? category.ctaLabel}
-                            {/* "Read more" alone is ambiguous in a list of links, so name the content too. */}
-                            <span className="sr-only">
-                                : {title}
-                                {external && " (opens in new tab)"}
-                            </span>
-                        </Button>
-                    </div>
+                    {linkStyle === "button" && (
+                        <div className={cx(styles.cta.base, variant === "featured" && styles.cta.featured)}>
+                            <Button href={href} color="link-color" size="md" iconTrailing={ArrowRight} className={styles.ctaButton} {...linkProps}>
+                                {ctaLabel ?? category.ctaLabel}
+                                {/* "Read more" alone is ambiguous in a list of links, so name the content too. */}
+                                <span className="sr-only">
+                                    : {title}
+                                    {external && " (opens in new tab)"}
+                                </span>
+                            </Button>
+                        </div>
+                    )}
                 </div>
             </div>
         </article>
