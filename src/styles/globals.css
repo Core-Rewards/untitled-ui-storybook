@@ -97,3 +97,10 @@ input[type="search"]::-webkit-search-cancel-button {
     0%, 100% { transform: scale(0.95); opacity: 0.3; }
     50%      { transform: scale(1.55); opacity: 0; }
 }
+
+/* Goal meter — a tier segment brightens once as it fills. */
+@keyframes goal-segment-flash {
+    0%   { filter: brightness(1); }
+    35%  { filter: brightness(1.35); }
+    100% { filter: brightness(1); }
+}
