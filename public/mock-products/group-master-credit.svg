@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600">
+  <rect width="600" height="600" fill="#ffffff"/>
+  <circle cx="300" cy="300" r="250" fill="#1b2340"/>
+  <circle cx="300" cy="300" r="185" fill="#ffffff"/>
+  <circle cx="300" cy="300" r="160" fill="none" stroke="#c0704f" stroke-width="3"/>
+  <defs>
+    <path id="top" d="M 90 300 A 210 210 0 0 1 510 300"/>
+    <path id="bottom" d="M 105 300 A 195 195 0 0 0 495 300"/>
+  </defs>
+  <text font-family="Helvetica, Arial, sans-serif" font-size="40" font-weight="700" fill="#ffffff" letter-spacing="2">
+    <textPath href="#top" startOffset="50%" text-anchor="middle">Most Valued Partners</textPath>
+  </text>
+  <text font-family="Helvetica, Arial, sans-serif" font-size="44" font-weight="700" fill="#ffffff" letter-spacing="10" dy="34">
+    <textPath href="#bottom" startOffset="50%" text-anchor="middle">M ★ V ★ P</textPath>
+  </text>
+  <text x="300" y="280" font-family="Helvetica, Arial, sans-serif" font-size="58" font-weight="700" fill="#97924a" text-anchor="middle">GROUP</text>
+  <text x="300" y="345" font-family="Helvetica, Arial, sans-serif" font-size="40" font-weight="600" fill="#1b2340" text-anchor="middle">CREDIT</text>
+</svg>
