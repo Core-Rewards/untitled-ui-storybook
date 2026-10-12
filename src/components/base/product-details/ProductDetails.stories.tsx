@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ProductColor, ProductSize } from "./product-details";
+import { expect, fn, userEvent, within } from "storybook/test";
+import type { ProductColor, ProductSize, RedemptionFormConfig } from "./product-details";
 import { ProductDetails } from "./product-details";
 
 // ─── Sample Data ──────────────────────────────────────────────────────────────
@@ -32,6 +33,31 @@ const driverVariants: ProductSize[] = [
     { id: "right-regular", label: "Right Hand — Regular — 10.5", description: "Standard flex ideal for moderate swing speeds of 75–90 mph.", inStock: true },
     { id: "right-stiff", label: "Right Hand — Stiff — 10.5", description: "Reduced torsion designed for faster swing speeds above 90 mph.", inStock: true },
 ];
+
+const creditAmounts: ProductSize[] = ["$2,500", "$3,000", "$3,500", "$100", "$250", "$500", "$750", "$1000", "$1500", "$2000"].map((label) => ({
+    id: label.replace(/\D/g, ""),
+    label,
+    inStock: true,
+}));
+
+const loewsContractForm: RedemptionFormConfig = {
+    title: "Loews Contract Details",
+    description: "We need a few details from your group contract to apply the credit to your Master Account.",
+    fields: [
+        {
+            id: "arrivalDate",
+            label: "Group Contract Arrival Date",
+            type: "date",
+            hint: "Requests can be made 14 to 90 days before arrival.",
+            minDaysFromToday: 14,
+            maxDaysFromToday: 90,
+        },
+        { id: "clientName", label: "Client Name", placeholder: "e.g. Acme Corporation" },
+        { id: "hotelName", label: "Hotel Name", placeholder: "e.g. Loews Chicago Hotel" },
+        { id: "postAsName", label: "Contract Post as Name", placeholder: "Name the contract is posted under" },
+        { id: "groupBookingId", label: "Group Booking ID Number", placeholder: "e.g. 1234567" },
+    ],
+};
 
 // ─── Meta ─────────────────────────────────────────────────────────────────────
 
@@ -146,5 +172,57 @@ export const AddingToCart: Story = {
     args: {
         ...Default.args,
         isAddingToCart: true,
+    },
+};
+
+/**
+ * A product that needs more details before it can be redeemed. After choosing an amount, the
+ * button reads "Continue" and opens the Loews Contract Details form. "Add to Cart" unlocks once
+ * every field is filled in and the arrival date is 14 to 90 days away.
+ */
+export const RequiresRedemptionDetails: Story = {
+    args: {
+        id: "loews-group-master-credit",
+        name: "Group Master Credit",
+        points: "3,500 points",
+        description:
+            "Loews MVP Program points can now be redeemed for a Group Master Account Credit.\n\nIf you are contracting a group event with a Loews Hotel you can now convert points to a dollar amount credit to your Group Master Account. A Master Account is created by the Loews Hotel where your event takes place and is the account where all event charges are billed. This is different than an individual guest room folio, to which only your individual guest room charges are billed. This benefit is meant for Corporate Loews MVP Members who do not use benefits for individuals, but for a Corporation as a whole. A Master Account Credit can be applied to an upcoming event in which the corporation will assume the charges to offset the total fee. This can be especially valuable for a corporate retreat or small board meeting.\n\nMust have a Definite contract, request must be made no more than 90 days prior to arrival, and deadline is 14 days before arrival.",
+        imageSrc: "/mock-products/group-master-credit.svg",
+        imageAlt: "Loews Most Valued Partners Group Master Credit",
+        availability: { type: "ships-in", message: "Ships in 3-5 business days." },
+        sizes: creditAmounts,
+        sizesLabel: "Options",
+        redemptionForm: loewsContractForm,
+        onAddToCart: fn(),
+    },
+    play: async ({ canvasElement, args }) => {
+        const canvas = within(canvasElement);
+        const continueButton = canvas.getByRole("button", { name: "Continue" });
+        await expect(continueButton).toBeDisabled();
+
+        await userEvent.click(canvas.getByRole("radio", { name: "$500" }));
+        await userEvent.click(continueButton);
+        await expect(canvas.getByRole("heading", { name: "Loews Contract Details" })).toBeInTheDocument();
+
+        const addToCart = canvas.getByRole("button", { name: "Add to Cart" });
+        await expect(addToCart).toBeDisabled();
+
+        await userEvent.type(canvas.getByRole("textbox", { name: /Client Name/ }), "Acme Corporation");
+        await userEvent.type(canvas.getByRole("textbox", { name: /Hotel Name/ }), "Loews Chicago Hotel");
+        await userEvent.type(canvas.getByRole("textbox", { name: /Contract Post as Name/ }), "Acme Leadership Retreat");
+        await userEvent.type(canvas.getByRole("textbox", { name: /Group Booking ID/ }), "1234567");
+        await expect(addToCart).toBeDisabled();
+
+        // Type a date 30 days out into the month / day / year segments.
+        const arrival = new Date();
+        arrival.setDate(arrival.getDate() + 30);
+        await userEvent.click(canvas.getAllByRole("spinbutton", { name: /month/i })[0]);
+        await userEvent.keyboard(`${arrival.getMonth() + 1}`.padStart(2, "0") + `${arrival.getDate()}`.padStart(2, "0") + `${arrival.getFullYear()}`);
+        await expect(addToCart).toBeEnabled();
+
+        await userEvent.click(addToCart);
+        await expect(args.onAddToCart).toHaveBeenCalledWith(
+            expect.objectContaining({ sizeId: "500", quantity: 1, details: expect.objectContaining({ clientName: "Acme Corporation", groupBookingId: "1234567" }) }),
+        );
     },
 };

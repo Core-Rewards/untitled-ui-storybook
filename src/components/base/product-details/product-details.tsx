@@ -1,7 +1,10 @@
-import { useCallback, useState } from "react";
-import type { FC } from "react";
+import { useCallback, useId, useState } from "react";
+import type { FC, FormEvent } from "react";
+import { getLocalTimeZone, parseDate, today } from "@internationalized/date";
 import { Button as SpinButton, Group, Input as NumberInput, Label, NumberField, Radio, RadioGroup } from "react-aria-components";
 import { Button } from "@/components/base/buttons/button";
+import { DatePicker } from "@/components/base/date-picker/date-picker";
+import { Input } from "@/components/base/input/input";
 import { cx } from "@/utils/cx";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -31,6 +34,32 @@ export type ProductAvailability =
     | { type: "out-of-stock" }
     | { type: "ships-in"; message: string };
 
+export type RedemptionField = {
+    /** Key for this value in the submitted details. */
+    id: string;
+    /** Label shown above the field. */
+    label: string;
+    /** "date" renders a date picker. @default "text" */
+    type?: "text" | "date";
+    /** Placeholder for text fields. */
+    placeholder?: string;
+    /** Helper text shown below the field. */
+    hint?: string;
+    /** Date fields only: the earliest date that can be picked, in days from today. */
+    minDaysFromToday?: number;
+    /** Date fields only: the latest date that can be picked, in days from today. */
+    maxDaysFromToday?: number;
+};
+
+export type RedemptionFormConfig = {
+    /** Heading shown above the fields (e.g. "Loews Contract Details"). */
+    title: string;
+    /** Optional supporting text under the heading. */
+    description?: string;
+    /** Fields the member must fill in. All are required. */
+    fields: RedemptionField[];
+};
+
 export type ProductDetailsData = {
     /** Unique identifier for the product. */
     id: string;
@@ -50,11 +79,19 @@ export type ProductDetailsData = {
     colors?: ProductColor[];
     /** Available size options. Omit when the product has no size variant. */
     sizes?: ProductSize[];
+    /** Label above the size options. @default "Size" */
+    sizesLabel?: string;
+    /**
+     * Details the member must provide before redeeming. When set, the button reads "Continue"
+     * until the options are chosen, then this form appears and "Add to Cart" unlocks once every
+     * field is filled in.
+     */
+    redemptionForm?: RedemptionFormConfig;
 };
 
 export interface ProductDetailsProps extends ProductDetailsData {
     /** Called when the user clicks "Add to Cart". Receives the selected variant IDs and quantity. */
-    onAddToCart?: (options: { colorId?: string; sizeId?: string; quantity: number }) => void;
+    onAddToCart?: (options: { colorId?: string; sizeId?: string; quantity: number; details?: Record<string, string> }) => void;
     /** Called when the user clicks the wishlist heart button. */
     onAddToWishlist?: () => void;
     /** Shows a loading spinner on "Add to Cart" while the action is in-flight. */
@@ -73,6 +110,23 @@ const spinButtonStyles = cx(
 );
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
+
+const dateBounds = (field: RedemptionField) => {
+    const now = today(getLocalTimeZone());
+    return {
+        minValue: field.minDaysFromToday !== undefined ? now.add({ days: field.minDaysFromToday }) : undefined,
+        maxValue: field.maxDaysFromToday !== undefined ? now.add({ days: field.maxDaysFromToday }) : undefined,
+    };
+};
+
+/** A field is complete when it has a value and, for dates, the date is within its bounds. */
+const isFieldComplete = (field: RedemptionField, value: string | undefined) => {
+    if (!value?.trim()) return false;
+    if (field.type !== "date") return true;
+    const date = parseDate(value);
+    const { minValue, maxValue } = dateBounds(field);
+    return (!minValue || date.compare(minValue) >= 0) && (!maxValue || date.compare(maxValue) <= 0);
+};
 
 /** Availability indicator reused from the cart-item design. */
 const AvailabilityBadge: FC<{ availability: ProductAvailability }> = ({ availability }) => {
@@ -120,6 +174,8 @@ export const ProductDetails: FC<ProductDetailsProps> = ({
     availability,
     colors,
     sizes,
+    sizesLabel = "Size",
+    redemptionForm,
     onAddToCart,
     onAddToWishlist,
     isAddingToCart = false,
@@ -129,6 +185,9 @@ export const ProductDetails: FC<ProductDetailsProps> = ({
     const [selectedSizeId, setSelectedSizeId] = useState("");
     const [quantity, setQuantity] = useState(1);
     const [floatingHearts, setFloatingHearts] = useState<number[]>([]);
+    const [step, setStep] = useState<"options" | "details">("options");
+    const [details, setDetails] = useState<Record<string, string>>({});
+    const formId = useId();
 
     const selectedColor = colors?.find((c) => c.id === selectedColorId);
 
@@ -165,12 +224,26 @@ export const ProductDetails: FC<ProductDetailsProps> = ({
         onAddToWishlist?.();
     };
 
+    const selectedSize = sizes?.find((s) => s.id === selectedSizeId);
+    const isOutOfStock = availability.type === "out-of-stock";
+    const isShowingDetails = !!redemptionForm && step === "details";
+    const hasChosenOptions = !sizes?.length || !!selectedSizeId;
+    const areDetailsComplete = !redemptionForm || redemptionForm.fields.every((field) => isFieldComplete(field, details[field.id]));
+
+    const setDetail = (id: string, value: string) => setDetails((prev) => ({ ...prev, [id]: value }));
+
     const handleAddToCart = () => {
         onAddToCart?.({
             colorId: selectedColorId || undefined,
             sizeId: selectedSizeId || undefined,
             quantity,
+            details: redemptionForm ? details : undefined,
         });
+    };
+
+    const handleDetailsSubmit = (event: FormEvent) => {
+        event.preventDefault();
+        if (areDetailsComplete) handleAddToCart();
     };
 
     return (
@@ -200,8 +273,68 @@ export const ProductDetails: FC<ProductDetailsProps> = ({
                         <AvailabilityBadge availability={availability} />
                     </div>
 
+                    {/* ── Selection summary (redemption form step) ──────── */}
+                    {isShowingDetails && (
+                        <div className="mt-6 flex items-center justify-between gap-4 rounded-xl bg-secondary px-4 py-3">
+                            <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+                                {selectedSize && (
+                                    <div className="flex gap-1.5">
+                                        <dt className="text-tertiary">{sizesLabel}</dt>
+                                        <dd className="font-medium text-primary">{selectedSize.label}</dd>
+                                    </div>
+                                )}
+                                {selectedColor && (
+                                    <div className="flex gap-1.5">
+                                        <dt className="text-tertiary">Color</dt>
+                                        <dd className="font-medium text-primary">{selectedColor.name}</dd>
+                                    </div>
+                                )}
+                                <div className="flex gap-1.5">
+                                    <dt className="text-tertiary">Quantity</dt>
+                                    <dd className="font-medium text-primary">{quantity}</dd>
+                                </div>
+                            </dl>
+                            <Button color="link-color" size="sm" onClick={() => setStep("options")}>
+                                Edit
+                            </Button>
+                        </div>
+                    )}
+
+                    {/* ── Redemption form ───────────────────────────────── */}
+                    {isShowingDetails && redemptionForm && (
+                        <form id={formId} className="mt-6" onSubmit={handleDetailsSubmit}>
+                            <h2 className="text-lg font-semibold text-primary">{redemptionForm.title}</h2>
+                            {redemptionForm.description && <p className="mt-1 text-sm text-tertiary">{redemptionForm.description}</p>}
+                            <div className="mt-4 flex flex-col gap-4">
+                                {redemptionForm.fields.map((field) =>
+                                    field.type === "date" ? (
+                                        <DatePicker
+                                            key={field.id}
+                                            label={field.label}
+                                            hint={field.hint}
+                                            isRequired
+                                            {...dateBounds(field)}
+                                            value={details[field.id] ? parseDate(details[field.id]) : null}
+                                            onChange={(date) => setDetail(field.id, date ? date.toString() : "")}
+                                        />
+                                    ) : (
+                                        <Input
+                                            key={field.id}
+                                            label={field.label}
+                                            hint={field.hint}
+                                            placeholder={field.placeholder}
+                                            isRequired
+                                            value={details[field.id] ?? ""}
+                                            onChange={(value) => setDetail(field.id, value)}
+                                        />
+                                    ),
+                                )}
+                            </div>
+                        </form>
+                    )}
+
                     {/* ── Color picker ──────────────────────────────────── */}
-                    {colors && colors.length > 0 && (
+                    {!isShowingDetails && colors && colors.length > 0 && (
                         <div className="mt-6">
                             <RadioGroup
                                 value={selectedColorId}
@@ -243,17 +376,17 @@ export const ProductDetails: FC<ProductDetailsProps> = ({
                     )}
 
                     {/* ── Size picker ───────────────────────────────────── */}
-                    {sizes && sizes.length > 0 && (() => {
+                    {!isShowingDetails && sizes && sizes.length > 0 && (() => {
                         const hasDescriptions = sizes.some((s) => s.description);
                         return (
                             <div className="mt-6">
                                 <RadioGroup
                                     value={selectedSizeId}
                                     onChange={setSelectedSizeId}
-                                    aria-label="Size"
+                                    aria-label={sizesLabel}
                                     orientation="horizontal"
                                 >
-                                    <Label className="text-sm font-medium text-primary">Size</Label>
+                                    <Label className="text-sm font-medium text-primary">{sizesLabel}</Label>
                                     {hasDescriptions ? (
                                         <div className="mt-3 grid grid-cols-2 gap-3">
                                             {sizes.map((size) => (
@@ -321,29 +454,45 @@ export const ProductDetails: FC<ProductDetailsProps> = ({
                     })()}
 
                     {/* ── Quantity ──────────────────────────────────────── */}
-                    <div className="mt-6">
-                        <NumberField value={quantity} minValue={1} onChange={setQuantity}>
-                            <Label className="text-sm font-medium text-primary">Quantity</Label>
-                            <Group className="mt-3 flex h-10 w-max items-center overflow-hidden rounded-lg border border-gray-200">
-                                <SpinButton slot="decrement" className={cx(spinButtonStyles, "border-r border-gray-200")}>−</SpinButton>
-                                <NumberInput className="w-12 bg-transparent text-center text-sm font-medium text-primary outline-none" />
-                                <SpinButton slot="increment" className={cx(spinButtonStyles, "border-l border-gray-200")}>+</SpinButton>
-                            </Group>
-                        </NumberField>
-                    </div>
+                    {!isShowingDetails && (
+                        <div className="mt-6">
+                            <NumberField value={quantity} minValue={1} onChange={setQuantity}>
+                                <Label className="text-sm font-medium text-primary">Quantity</Label>
+                                <Group className="mt-3 flex h-10 w-max items-center overflow-hidden rounded-lg border border-gray-200">
+                                    <SpinButton slot="decrement" className={cx(spinButtonStyles, "border-r border-gray-200")}>−</SpinButton>
+                                    <NumberInput className="w-12 bg-transparent text-center text-sm font-medium text-primary outline-none" />
+                                    <SpinButton slot="increment" className={cx(spinButtonStyles, "border-l border-gray-200")}>+</SpinButton>
+                                </Group>
+                            </NumberField>
+                        </div>
+                    )}
 
                     {/* ── Add to Cart + Wishlist ─────────────────────────── */}
                     <div className="mt-8 flex gap-3">
-                        <Button
-                            color="primary"
-                            size="lg"
-                            className="flex-1"
-                            isLoading={isAddingToCart}
-                            isDisabled={availability.type === "out-of-stock"}
-                            onClick={handleAddToCart}
-                        >
-                            Add to Cart
-                        </Button>
+                        {redemptionForm && !isShowingDetails ? (
+                            <Button
+                                color="primary"
+                                size="lg"
+                                className="flex-1"
+                                isDisabled={isOutOfStock || !hasChosenOptions}
+                                onClick={() => setStep("details")}
+                            >
+                                Continue
+                            </Button>
+                        ) : (
+                            <Button
+                                color="primary"
+                                size="lg"
+                                className="flex-1"
+                                type={isShowingDetails ? "submit" : "button"}
+                                form={isShowingDetails ? formId : undefined}
+                                isLoading={isAddingToCart}
+                                isDisabled={isOutOfStock || !areDetailsComplete}
+                                onClick={isShowingDetails ? undefined : handleAddToCart}
+                            >
+                                Add to Cart
+                            </Button>
+                        )}
                         <div className="relative">
                             <Button
                                 color="secondary"
@@ -372,7 +521,7 @@ export const ProductDetails: FC<ProductDetailsProps> = ({
                     {/* ── Description ───────────────────────────────────── */}
                     <div className="mt-8 border-t border-gray-200 pt-6">
                         <h2 className="text-sm font-semibold text-primary">Description</h2>
-                        <p className="mt-3 text-sm leading-relaxed text-secondary">{description}</p>
+                        <p className="mt-3 text-sm leading-relaxed whitespace-pre-line text-secondary">{description}</p>
                     </div>
                 </div>
             </div>
