@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { AppShell } from "@/components/base/app-shell/app-shell";
-import { sampleAccountMenuItems, sampleBrand, sampleHeaderActions, sampleNavItems } from "@/components/base/app-shell/app-shell-sample-data";
+import { sampleAccountMenuItems, sampleAccountName, sampleBrand, sampleHeaderActions, sampleNavItems } from "@/components/base/app-shell/app-shell-sample-data";
 import { ParticipatingSuppliers } from "./participating-suppliers";
 import { sampleSuppliers } from "./supplier-sample-data";
 import { DEFAULT_SUPPLIER_FILTERS } from "./supplier-utils";
@@ -32,8 +32,16 @@ type Story = StoryObj<typeof meta>;
 
 const Shell = ({ children }: { children: ReactNode }) => (
     <AppShell
-        sidebar={{ brand: sampleBrand, items: sampleNavItems, activeId: "suppliers", pointsBalance: 34449844 }}
-        header={{ actions: sampleHeaderActions, accountMenuItems: sampleAccountMenuItems }}
+        sidebar={{
+            brand: sampleBrand,
+            items: sampleNavItems,
+            activeId: "suppliers",
+            accountName: sampleAccountName,
+            pointsBalance: 34449844,
+            accountMenuItems: sampleAccountMenuItems,
+            onSignOut: () => {},
+        }}
+        header={{ actions: sampleHeaderActions }}
     >
         {children}
     </AppShell>
