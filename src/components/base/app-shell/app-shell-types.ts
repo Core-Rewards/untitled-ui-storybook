@@ -11,6 +11,13 @@ export interface AppNavItem {
     isExternal?: boolean;
 }
 
+/** A rule between groups of nav items. */
+export interface AppNavDivider {
+    divider: true;
+}
+
+export type AppNavEntry = AppNavItem | AppNavDivider;
+
 export interface AppHeaderAction {
     id: string;
     /** Accessible name, also shown as the tooltip. */
@@ -32,6 +39,8 @@ export interface AppAccountMenuItem {
 
 export interface AppBrand {
     logoSrc: string;
+    /** Smaller logo for the mobile top bar. Defaults to `logoSrc`. */
+    mobileLogoSrc?: string;
     /** Alt text for the logo, e.g. `AD Rewards`. */
     name: string;
     href?: string;
