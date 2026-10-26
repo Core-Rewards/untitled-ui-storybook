@@ -9,7 +9,8 @@ import { cx, sortCx } from "@/utils/cx";
 const styles = sortCx({
     section: "bg-primary py-16 md:py-24",
     container: "mx-auto max-w-container px-4 md:px-8",
-    panel: "flex flex-col overflow-hidden rounded-2xl bg-neutral-50 shadow-xl md:flex-row md:items-center md:rounded-3xl",
+    // Border, radius and shadow match ContentCard.
+    panel: "flex flex-col overflow-hidden rounded-2xl border border-secondary bg-neutral-50 shadow-xs md:flex-row md:items-center",
     body: "flex flex-1 flex-col px-6 pt-10 pb-12 lg:p-16",
     headline: "text-display-sm font-semibold text-black md:text-display-md",
     description: "mt-4 text-lg text-black md:mt-5 md:text-xl",
