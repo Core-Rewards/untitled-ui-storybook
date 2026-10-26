@@ -5,16 +5,16 @@ import { cx, sortCx } from "@/utils/cx";
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-// Layout follows Untitled UI's cta-split-image-04: a brand panel with copy on the left and a photo on the right.
+// Layout follows Untitled UI's cta-split-image-04: a light panel with copy on the left and a photo on the right.
 const styles = sortCx({
     section: "bg-primary py-16 md:py-24",
     container: "mx-auto max-w-container px-4 md:px-8",
-    panel: "flex flex-col overflow-hidden rounded-2xl bg-brand-section shadow-xl md:flex-row md:items-center md:rounded-3xl",
+    panel: "flex flex-col overflow-hidden rounded-2xl bg-neutral-50 shadow-xl md:flex-row md:items-center md:rounded-3xl",
     body: "flex flex-1 flex-col px-6 pt-10 pb-12 lg:p-16",
-    headline: "text-display-sm font-semibold text-primary_on-brand md:text-display-md",
-    description: "mt-4 text-lg text-tertiary_on-brand md:mt-5 md:text-xl",
+    headline: "text-display-sm font-semibold text-black md:text-display-md",
+    description: "mt-4 text-lg text-black md:mt-5 md:text-xl",
     cta: "mt-8 flex flex-col items-start gap-3 md:mt-12",
-    ctaLabel: "text-md font-medium text-secondary_on-brand",
+    ctaLabel: "text-md font-medium text-black",
     copyWrap: "relative",
     copyButton: "max-w-full [&_[data-text]]:truncate",
     copied: [
@@ -101,7 +101,7 @@ export const ConciergeCta = ({ headline, description, ctaLabel, email, image, co
                                 )}
                                 <Button
                                     size="xl"
-                                    color="secondary"
+                                    color="primary"
                                     iconTrailing={copied ? Check : Copy01}
                                     aria-label={`Copy ${email} to clipboard`}
                                     className={styles.copyButton}
