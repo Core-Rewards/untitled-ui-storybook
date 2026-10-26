@@ -71,7 +71,7 @@ type Story = StoryObj<typeof meta>;
 
 /**
  * Five and a half years in. The 1-year milestone predates the program so it is
- * only celebrated, the backpack is redeemed, and the 5-year quarter-zip is
+ * only celebrated, the cooler is redeemed, and the 5-year iPad is
  * waiting: its badge pulses and is a button.
  */
 export const Playground: Story = {};

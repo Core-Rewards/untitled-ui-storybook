@@ -74,9 +74,6 @@ export const MilestoneBadge: FC<MilestoneBadgeProps> = ({ value, caption, state,
                         <stop offset=".7" stopColor="var(--color-brand-100)" />
                         <stop offset="1" stopColor="var(--color-brand-500)" />
                     </linearGradient>
-                    <clipPath id={`clip-${uid}`}>
-                        <circle cx="50" cy="50" r="40" />
-                    </clipPath>
                 </defs>
 
                 {/* Ring */}
@@ -88,13 +85,8 @@ export const MilestoneBadge: FC<MilestoneBadgeProps> = ({ value, caption, state,
                     <circle cx="50" cy="50" r="47" fill={palette.upcoming.ring} stroke={palette.upcoming.stroke} strokeWidth="2" />
                 )}
 
-                {/* Disc, with a diagonal sheen once earned */}
+                {/* Disc */}
                 <circle cx="50" cy="50" r="40" fill={colors.disc} />
-                {earned && (
-                    <g clipPath={`url(#clip-${uid})`}>
-                        <polygon points="18,4 34,4 58,56 50,72" fill="#fff" opacity=".14" />
-                    </g>
-                )}
 
                 <text
                     x="50"

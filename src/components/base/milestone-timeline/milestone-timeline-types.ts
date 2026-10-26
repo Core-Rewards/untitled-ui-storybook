@@ -7,7 +7,7 @@ export type MilestoneType = "years" | "activity";
 
 /**
  * What reaching a milestone pays out.
- * - `product`: a gift the participant redeems, e.g. a branded backpack.
+ * - `product`: a gift the participant redeems, e.g. a cooler or tablet.
  * - `points`: points credited to their balance.
  */
 export type MilestoneReward = { type: "product"; name: string; imageSrc?: string } | { type: "points"; points: number };
