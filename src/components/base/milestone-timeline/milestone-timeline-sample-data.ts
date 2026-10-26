@@ -12,14 +12,14 @@ export const SAMPLE_REWARDS_START = "2024-01-01";
 export const courseUnit: MilestoneUnit = { singular: "course", plural: "courses" };
 
 const products: Extract<MilestoneReward, { type: "product" }>[] = [
-    { type: "product", name: "Structured Cap", imageSrc: "/milestone-rewards/hat.jpg" },
-    { type: "product", name: "Commuter Backpack", imageSrc: "/milestone-rewards/backpack.jpg" },
-    { type: "product", name: "Performance Quarter-Zip", imageSrc: "/milestone-rewards/quarterzip.jpg" },
+    { type: "product", name: "Golf Balls", imageSrc: "/mock-products/taylormade-golf-balls.jpg" },
+    { type: "product", name: "Roadie Cooler", imageSrc: "/mock-products/yeti-roadie-cooler.jpg" },
+    { type: "product", name: "iPad Pro", imageSrc: "/mock-products/ipad-pro-silver.jpg" },
+    { type: "product", name: "Pellet Grill", imageSrc: "/mock-products/traeger-timberline-grill.jpg" },
     { type: "product", name: "Wireless Earbuds" },
     { type: "product", name: "Weekender Bag" },
     { type: "product", name: "Smart Watch" },
     { type: "product", name: "Espresso Machine" },
-    { type: "product", name: "Patio Grill" },
     { type: "product", name: "Getaway Package" },
     { type: "product", name: "Lifetime Award" },
 ];
@@ -41,7 +41,7 @@ export const buildMilestones = (count: number, type: MilestoneType, rewards: Sam
     });
 };
 
-/** Years of service: cap, backpack and quarter-zip at 1, 3 and 5 years, then points every five years. */
+/** Years of service: golf balls, a cooler and an iPad at 1, 3 and 5 years, then points every five years. */
 export const serviceMilestones = buildMilestones(7, "years", "mixed");
 
 /** Courses completed, paying points. */
