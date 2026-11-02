@@ -41,3 +41,8 @@ export { BookingHistoryTable } from "./booking-history-table";
 export type { BookingHistoryTableProps } from "./booking-history-table";
 export type { Booking, BookingStatus } from "./booking-history-types";
 export { BOOKING_STATUS_COLORS, BOOKING_STATUS_LABELS } from "./booking-history-types";
+
+export { SalesHistoryTable } from "./sales-history-table";
+export type { SalesHistoryTableProps } from "./sales-history-table";
+export type { SalesHistoryView, SalesMonthStatus, SalesRecord } from "./sales-history-types";
+export { SALES_MONTH_STATUS_COLORS, SALES_MONTH_STATUS_LABELS, formatSalesMonth } from "./sales-history-types";

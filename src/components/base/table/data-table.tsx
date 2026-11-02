@@ -33,6 +33,10 @@ export interface DataTableProps<T> {
     badge?: ReactNode;
     /** Controls pinned to the right of the header. */
     headerActions?: ReactNode;
+    /** Extra controls rendered in the toolbar after the search and filters, e.g. a view switcher. */
+    toolbarActions?: ReactNode;
+    /** Content between the header and the table, e.g. a row of summary stats. */
+    summary?: ReactNode;
 
     /** Controlled sort. Pair with `onSortChange`. */
     sortDescriptor?: TableSortDescriptor;
@@ -110,6 +114,8 @@ export function DataTable<T>({
     description,
     badge,
     headerActions,
+    toolbarActions,
+    summary,
     sortDescriptor: controlledSort,
     defaultSortDescriptor,
     onSortChange,
@@ -187,7 +193,7 @@ export function DataTable<T>({
         setSelectedIds([...selectedIds.filter((id) => !pageIds.includes(id)), ...nextOnThisPage]);
     };
 
-    const hasToolbar = Boolean(search) || (filters?.length ?? 0) > 0;
+    const hasToolbar = Boolean(search) || (filters?.length ?? 0) > 0 || toolbarActions != null;
     const isFiltered = searchQuery.trim().length > 0 || Object.values(filterValues).some((values) => values.length > 0);
 
     const toolbar = hasToolbar && (
@@ -215,6 +221,7 @@ export function DataTable<T>({
                     }}
                 />
             ))}
+            {toolbarActions}
         </div>
     );
 
@@ -227,6 +234,8 @@ export function DataTable<T>({
             ) : (
                 hasToolbar && <div className="border-b border-secondary px-6 py-4">{toolbar}</div>
             )}
+
+            {summary}
 
             {isSelectable && selectedIds.length > 0 && (
                 <div className="flex flex-col gap-3 border-b border-secondary bg-secondary px-6 py-3 sm:flex-row sm:items-center sm:justify-between">
