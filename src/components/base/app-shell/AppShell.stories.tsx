@@ -1,10 +1,13 @@
+import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 import { LifeBuoy01, Settings01 } from "@untitledui/icons";
+import { Button } from "@/components/base/buttons/button";
 import { AppHeader } from "./app-header";
 import { AppShell } from "./app-shell";
 import { sampleAccountMenuItems, sampleAccountName, sampleBrand, sampleHeaderActions, sampleNavItems } from "./app-shell-sample-data";
 import { AppSidebar } from "./app-sidebar";
+import type { PointsAward } from "./points-gain";
 
 // ─── Meta ─────────────────────────────────────────────────────────────────────
 
@@ -76,4 +79,38 @@ export const Sidebar: Story = {
 /** Counts over 99 cap at `99+`. */
 export const Header: Story = {
     render: () => <AppHeader actions={sampleHeaderActions.map((action) => (action.id === "cart" ? { ...action, badge: 120 } : action))} />,
+};
+
+const PointsWonDemo = (args: Story["args"]) => {
+    const [points, setPoints] = useState(34449844);
+    const [award, setAward] = useState<PointsAward | null>(null);
+    const win = (amount: number) => {
+        setPoints((p) => p + amount);
+        setAward((a) => ({ id: (a?.id ?? 0) + 1, amount }));
+    };
+    return (
+        <AppShell {...meta.args} {...args} sidebar={{ ...meta.args.sidebar, pointsBalance: points, pointsAward: award }}>
+            <div className="flex flex-col gap-4">
+                <h1 className="text-display-xs font-semibold text-primary">Points won</h1>
+                <p className="max-w-xl text-md text-tertiary">
+                    Pass `pointsAward` with the new `pointsBalance`. A "+N" pill flashes next to the balance, counts up, holds, then fades while the balance rolls up.
+                    The Rewards Arcade sends one award per finished play or batch of plays.
+                </p>
+                <div className="flex gap-3">
+                    <Button size="md" onClick={() => win(250)}>
+                        Win 250
+                    </Button>
+                    <Button size="md" color="secondary" onClick={() => win(1350)}>
+                        Win 1,350
+                    </Button>
+                </div>
+            </div>
+        </AppShell>
+    );
+};
+
+/** "+N" counter next to the balance when points are won (used by the Rewards Arcade). */
+export const PointsWon: Story = {
+    name: "Points won counter",
+    render: (args) => <PointsWonDemo {...args} />,
 };
