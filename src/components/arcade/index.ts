@@ -1,0 +1,22 @@
+// Public surface of the Rewards Arcade. Import from "@/components/arcade".
+export * from "./api/types";
+export * from "./api/arcade-api";
+export * from "./api/arcade-api-provider";
+export * from "./api/arcade-session";
+export { createMockArcadeApi, mockGames, mockStatus, type MockScenario } from "./api/mock-arcade-api";
+export { ArcadeBackdrop } from "./components/arcade-backdrop";
+export { ArcadeButton } from "./components/arcade-button";
+export { ArcadeWordmark } from "./components/arcade-wordmark";
+export { GameCard } from "./components/game-card";
+export { TokenBalance } from "./components/token-balance";
+export { ArcadeEnterScreen } from "./screens/arcade-enter-screen";
+export { ArcadeLobbyScreen } from "./screens/arcade-lobby-screen";
+export { ArcadeHeader, type ArcadeNavItem } from "./components/arcade-header";
+export { PlinkoScreen } from "./games/plinko/plinko-screen";
+export { PlinkoBoard } from "./games/plinko/plinko-board";
+export { PrizeModal } from "./components/prize-modal";
+export { SoundToggle } from "./components/sound-toggle";
+export { GameStage } from "./components/game-stage";
+export { ArcadeExperience } from "./arcade-experience";
+export { ARCADE_ROUTES } from "./routes";
+export { ArcadeNavBadge } from "./components/arcade-nav-badge";

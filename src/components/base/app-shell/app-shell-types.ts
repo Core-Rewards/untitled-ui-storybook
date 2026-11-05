@@ -1,4 +1,4 @@
-import type { FC } from "react";
+import type { FC, ReactNode } from "react";
 
 type Icon = FC<{ className?: string }>;
 
@@ -9,6 +9,8 @@ export interface AppNavItem {
     icon: Icon;
     /** Opens in a new tab and shows an external-link mark. */
     isExternal?: boolean;
+    /** Trailing content, e.g. the Rewards Arcade token count. */
+    badge?: ReactNode;
 }
 
 /** A rule between groups of nav items. */

@@ -6,6 +6,8 @@ import { ChevronSelectorVertical, LogOut01, Share04 } from "@untitledui/icons";
 import { cx, sortCx } from "@/utils/cx";
 import { formatNumber } from "@/utils/format";
 import type { AppAccountMenuItem, AppBrand, AppNavEntry, AppNavItem } from "./app-shell-types";
+import { type PointsAward, PointsGain } from "./points-gain";
+import { useCountUp } from "./use-count-up";
 
 type Placement = NonNullable<PopoverProps["placement"]>;
 
@@ -40,7 +42,7 @@ const NavLink: FC<{
     isCurrent: boolean;
     onNavigate?: () => void;
 }> = ({ item, isCurrent, onNavigate }) => {
-    const { label, href, icon: Icon, isExternal } = item;
+    const { label, href, icon: Icon, isExternal, badge } = item;
     return (
         <AriaLink
             href={href}
@@ -52,6 +54,7 @@ const NavLink: FC<{
         >
             <Icon aria-hidden="true" className={styles.itemIcon} />
             <span className={styles.itemLabel}>{label}</span>
+            {badge && <span className="ml-2 shrink-0">{badge}</span>}
             {isExternal && (
                 <>
                     <Share04 className="size-4 shrink-0 stroke-[2.5px] text-fg-quaternary" aria-hidden="true" />
@@ -74,22 +77,30 @@ const AccountMenuRow: FC<{
 
 interface AccountCardProps {
     name: string;
-    subtitle?: string;
+    points?: number;
+    pointsAward?: PointsAward | null;
     menuItems: AppAccountMenuItem[];
     onSignOut?: () => void;
     placement: Placement;
 }
 
 /** Account name and points in a bordered card, with a menu for profile links and sign out. */
-const AccountCard: FC<AccountCardProps> = ({ name, subtitle, menuItems, onSignOut, placement }) => {
+const AccountCard: FC<AccountCardProps> = ({ name, points, pointsAward, menuItems, onSignOut, placement }) => {
     const cardRef = useRef<HTMLDivElement>(null);
+    // Rolls up to the new balance when points are won (see `pointsAward`).
+    const shownPoints = useCountUp(points ?? 0);
     const hasMenu = menuItems.length > 0 || onSignOut;
 
     return (
         <div ref={cardRef} className={styles.accountCard}>
             <div className="min-w-0 flex-1 pr-8">
                 <p className="truncate text-sm font-semibold text-secondary">{name}</p>
-                {subtitle && <p className="truncate text-xs text-tertiary tabular-nums">{subtitle}</p>}
+                {points !== undefined && (
+                    <div className="flex min-w-0 items-center gap-1.5">
+                        <p className="truncate text-xs text-tertiary tabular-nums">{formatNumber(shownPoints)} points</p>
+                        <PointsGain award={pointsAward} className="px-1.5 py-0 text-xs" />
+                    </div>
+                )}
             </div>
 
             {hasMenu && (
@@ -140,6 +151,11 @@ export interface AppSidebarProps {
     accountName?: string;
     /** Points balance under the account name. */
     pointsBalance?: number;
+    /**
+     * Latest points won, e.g. from the Rewards Arcade. A new `id` flashes "+N" next to
+     * the balance and counts up. Update `pointsBalance` at the same time so it rolls up too.
+     */
+    pointsAward?: PointsAward | null;
     /** Links in the account card's menu. */
     accountMenuItems?: AppAccountMenuItem[];
     /** Adds a separated `Sign out` row to the account menu. */
@@ -160,6 +176,7 @@ export const AppSidebar: FC<AppSidebarProps> = ({
     activeId,
     accountName,
     pointsBalance,
+    pointsAward,
     accountMenuItems = [],
     onSignOut,
     accountMenuPlacement = "right bottom",
@@ -183,7 +200,8 @@ export const AppSidebar: FC<AppSidebarProps> = ({
                 {showAccount && (
                     <AccountCard
                         name={accountName ?? "My Account"}
-                        subtitle={pointsBalance !== undefined ? `${formatNumber(pointsBalance)} points` : undefined}
+                        points={pointsBalance}
+                        pointsAward={pointsAward}
                         menuItems={accountMenuItems}
                         onSignOut={onSignOut}
                         placement={accountMenuPlacement}
