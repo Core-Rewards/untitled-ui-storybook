@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { withAdRewardsTheme } from "@/components/adrewards/with-ad-rewards-theme";
 import { SupplierCard, SupplierCardSkeleton } from "./supplier-card";
 import { sampleSuppliers, supplierById } from "./supplier-sample-data";
 
@@ -18,6 +19,7 @@ const meta = {
     },
     tags: ["autodocs"],
     decorators: [
+        withAdRewardsTheme,
         (Story) => (
             <div className="max-w-xs">
                 <Story />

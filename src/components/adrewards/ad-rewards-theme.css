@@ -1,0 +1,22 @@
+/*
+ * AD green as the brand scale, built around the logo green (brand-600).
+ *
+ * The semantic tokens (bg-brand-solid, text-brand-secondary, ...) resolve
+ * against the brand scale on :root, so the override has to sit on :root too.
+ * That also covers drawers, menus and tooltips, which render outside the page.
+ * The story decorator adds the class only while an AD Rewards story is on screen.
+ */
+:root.theme-ad-rewards {
+    --color-brand-25: rgb(249 251 248);
+    --color-brand-50: rgb(242 247 241);
+    --color-brand-100: rgb(228 238 226);
+    --color-brand-200: rgb(203 221 199);
+    --color-brand-300: rgb(167 196 161);
+    --color-brand-400: rgb(124 163 116);
+    --color-brand-500: rgb(90 133 81);
+    --color-brand-600: rgb(68 104 60);
+    --color-brand-700: rgb(55 86 48);
+    --color-brand-800: rgb(45 69 40);
+    --color-brand-900: rgb(37 56 33);
+    --color-brand-950: rgb(22 35 20);
+}

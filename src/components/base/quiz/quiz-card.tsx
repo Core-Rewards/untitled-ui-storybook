@@ -27,6 +27,12 @@ export interface QuizCardProps {
     nextQuestionLabel?: string;
     /** Eyebrow text above the question. Defaults to "Monthly Quiz". */
     eyebrow?: string;
+    /**
+     * Artwork for the question, placed like a video: beside the question once
+     * the card is wide enough, above it on a narrow card. Cropped to a 16:9 frame.
+     * Ignored when the question has a video.
+     */
+    image?: { src: string; alt: string };
     className?: string;
 }
 
@@ -118,6 +124,7 @@ export const QuizCard: FC<QuizCardProps> = ({
     streakRequiresCorrectAnswer = false,
     nextQuestionLabel,
     eyebrow = "Monthly Quiz",
+    image,
     className,
 }) => {
     const [selectedOptionId, setSelectedOptionId] = useState("");
@@ -170,12 +177,22 @@ export const QuizCard: FC<QuizCardProps> = ({
             <div className="@container px-5 py-5">
                 <div
                     className={cx(
-                        question.video && "flex flex-col gap-5 @3xl:flex-row @3xl:items-start @3xl:gap-8",
+                        (question.video || image) && "flex flex-col gap-5 @3xl:flex-row @3xl:items-start @3xl:gap-8",
                     )}
                 >
 
                     {/* ── Video ────────────────────────────────────────────────── */}
                     {question.video && <QuizVideoEmbed video={question.video} showPrompt={!isAnswered} />}
+
+                    {/* ── Image ────────────────────────────────────────────────── */}
+                    {/* Same 16:9 frame as the landscape video player: half the card when wide, above the question when narrow. */}
+                    {image && !question.video && (
+                        <div className="w-full shrink-0 @3xl:w-1/2">
+                            <div className="aspect-video overflow-hidden rounded-xl border border-gray-200 bg-gray-950">
+                                <img src={image.src} alt={image.alt} className="size-full object-cover" />
+                            </div>
+                        </div>
+                    )}
 
                     <div className="min-w-0 flex-1">
 

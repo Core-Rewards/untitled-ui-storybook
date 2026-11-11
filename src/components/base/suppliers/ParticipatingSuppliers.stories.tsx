@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { withAdRewardsTheme } from "@/components/adrewards/with-ad-rewards-theme";
 import { AppShell } from "@/components/base/app-shell/app-shell";
 import { sampleAccountMenuItems, sampleAccountName, sampleBrand, sampleHeaderActions, sampleNavItems } from "@/components/base/app-shell/app-shell-sample-data";
 import { ParticipatingSuppliers } from "./participating-suppliers";
@@ -21,6 +22,7 @@ const meta = {
         },
     },
     tags: ["autodocs"],
+    decorators: [withAdRewardsTheme],
     argTypes: { onFiltersChange: { action: "onFiltersChange" } },
     args: {
         suppliers: sampleSuppliers,
