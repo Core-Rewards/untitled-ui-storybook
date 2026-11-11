@@ -3,7 +3,7 @@ import type { FC, ReactNode } from "react";
 import { Button as AriaButton, Dialog, Modal, ModalOverlay } from "react-aria-components";
 import { Menu02, X as CloseIcon } from "@untitledui/icons";
 import { cx } from "@/utils/cx";
-import { AppHeader } from "./app-header";
+import { AppHeader, AppHeaderActions } from "./app-header";
 import type { AppHeaderProps } from "./app-header";
 import { AppSidebar } from "./app-sidebar";
 import type { AppSidebarProps } from "./app-sidebar";
@@ -21,8 +21,8 @@ export interface AppShellProps {
 /**
  * Mirrors the AdminUI participant portal layout: a 280px sidebar with logo,
  * account card and navigation, a slim utility header, and the page. Below `lg`
- * the sidebar and header give way to a top bar whose menu button opens the
- * sidebar as a drawer.
+ * the sidebar and header give way to a top bar that keeps the header's icon
+ * buttons and adds a menu button, which opens the sidebar as a drawer.
  */
 export const AppShell: FC<AppShellProps> = ({ sidebar, header, children, contentClassName, className }) => {
     const [isDrawerOpen, setDrawerOpen] = useState(false);
@@ -33,13 +33,16 @@ export const AppShell: FC<AppShellProps> = ({ sidebar, header, children, content
             {/* Mobile top bar */}
             <header className="flex h-14 shrink-0 items-center justify-between border-b border-secondary bg-primary p-3 pl-4 lg:hidden">
                 <img src={brand.mobileLogoSrc ?? brand.logoSrc} alt={brand.name} className="h-8 w-auto" />
-                <AriaButton
-                    aria-label="Expand navigation menu"
-                    onPress={() => setDrawerOpen(true)}
-                    className="flex cursor-pointer items-center justify-center rounded-lg bg-primary p-2 text-fg-secondary outline-focus-ring hover:bg-primary_hover hover:text-fg-secondary_hover focus-visible:outline-2 focus-visible:outline-offset-2"
-                >
-                    <Menu02 className="size-6" />
-                </AriaButton>
+                <div className="flex items-center gap-1">
+                    <AppHeaderActions actions={header?.actions ?? []} />
+                    <AriaButton
+                        aria-label="Expand navigation menu"
+                        onPress={() => setDrawerOpen(true)}
+                        className="flex cursor-pointer items-center justify-center rounded-lg bg-primary p-2 text-fg-secondary outline-focus-ring hover:bg-primary_hover hover:text-fg-secondary_hover focus-visible:outline-2 focus-visible:outline-offset-2"
+                    >
+                        <Menu02 className="size-6" />
+                    </AriaButton>
+                </div>
             </header>
 
             <ModalOverlay

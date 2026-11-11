@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { withAdRewardsTheme } from "@/components/adrewards/with-ad-rewards-theme";
 import { SupplierFilters } from "./supplier-filters";
 import { sampleSuppliers } from "./supplier-sample-data";
 import type { SupplierFilterState } from "./supplier-types";
@@ -20,6 +21,7 @@ const meta = {
         },
     },
     tags: ["autodocs"],
+    decorators: [withAdRewardsTheme],
     argTypes: { onChange: { action: "onChange" } },
     args: {
         value: DEFAULT_SUPPLIER_FILTERS,

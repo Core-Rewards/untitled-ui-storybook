@@ -26,19 +26,9 @@ const Badge: FC<{ badge: AppHeaderAction["badge"] }> = ({ badge }) => {
 const actionLabel = ({ label, badge }: AppHeaderAction) =>
     typeof badge === "number" && badge > 0 ? `${label}, ${badge} ${badge === 1 ? "item" : "items"}` : badge === true ? `${label}, new` : label;
 
-export interface AppHeaderProps {
-    /** Icon buttons on the right, e.g. cart and notifications. */
-    actions?: AppHeaderAction[];
-    /** Left-aligned content, e.g. a page title or global search. */
-    children?: ReactNode;
-    className?: string;
-}
-
-/** Slim utility bar above the page content, matching the AdminUI portal header. */
-export const AppHeader: FC<AppHeaderProps> = ({ actions = [], children, className }) => (
-    <header className={cx(styles.root, className)}>
-        <div className="flex min-w-0 flex-1 items-center">{children}</div>
-
+/** The icon buttons on their own, so the mobile top bar can show them next to the menu button. */
+export const AppHeaderActions: FC<{ actions: AppHeaderAction[] }> = ({ actions }) => (
+    <>
         {actions.map((action) => {
             const Icon = action.icon;
             const content = (
@@ -64,5 +54,21 @@ export const AppHeader: FC<AppHeaderProps> = ({ actions = [], children, classNam
                 </TooltipTrigger>
             );
         })}
+    </>
+);
+
+export interface AppHeaderProps {
+    /** Icon buttons on the right, e.g. cart and notifications. */
+    actions?: AppHeaderAction[];
+    /** Left-aligned content, e.g. a page title or global search. */
+    children?: ReactNode;
+    className?: string;
+}
+
+/** Slim utility bar above the page content, matching the AdminUI portal header. */
+export const AppHeader: FC<AppHeaderProps> = ({ actions = [], children, className }) => (
+    <header className={cx(styles.root, className)}>
+        <div className="flex min-w-0 flex-1 items-center">{children}</div>
+        <AppHeaderActions actions={actions} />
     </header>
 );

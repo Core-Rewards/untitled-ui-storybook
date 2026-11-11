@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { withAdRewardsTheme } from "@/components/adrewards/with-ad-rewards-theme";
 import { SupplierShowcase } from "./supplier-showcase";
 import { SupplierSphere } from "./supplier-sphere";
 import { sampleSuppliers } from "./supplier-sample-data";
@@ -18,6 +19,7 @@ const meta = {
         },
     },
     tags: ["autodocs"],
+    decorators: [withAdRewardsTheme],
     argTypes: {
         maxLogos: { control: { type: "range", min: 12, max: 60, step: 2 } },
         speed: { control: { type: "range", min: 2, max: 30, step: 1 } },
