@@ -25,6 +25,8 @@ const PlayablePlinko = ({
             game={plinko}
             tokenBalance={balance}
             reducedMotion={reducedMotion}
+            // Stories share one browser tab, so each one starts its session total from zero.
+            rememberSessionWinnings={false}
             onBack={fn()}
             onNavigate={fn()}
             onPlay={async () => {
