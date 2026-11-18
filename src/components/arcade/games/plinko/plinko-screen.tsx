@@ -2,11 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { IconCrown } from "@/components/arcade/components/arcade-icons";
 import type { ArcadeGame, PlayResult, Prize } from "../../api/types";
 import { ArcadeError } from "../../api/types";
+import { useSessionWinnings } from "../../api/use-session-winnings";
 import { ArcadeBackdrop } from "../../components/arcade-backdrop";
 import { ArcadeButton } from "../../components/arcade-button";
 import { ArcadeHeader, type ArcadeHeaderProps } from "../../components/arcade-header";
 import { GameStage } from "../../components/game-stage";
 import { PrizeModal } from "../../components/prize-modal";
+import { SessionWinnings } from "../../components/session-winnings";
 import { SoundToggle } from "../../components/sound-toggle";
 import { sfx } from "../../sound/arcade-sound";
 import { PlinkoBoard, type PlinkoBoardHandle } from "./plinko-board";
@@ -31,6 +33,11 @@ export interface PlinkoScreenProps {
     onPointsWon?: (total: number) => void;
     /** Show the "Drop 5" button. */
     allowMultiDrop?: boolean;
+    /**
+     * Keep the "Won this session" total across a refresh or a trip back to the lobby
+     * (it clears when the tab closes). Turn off to start from zero on every mount.
+     */
+    rememberSessionWinnings?: boolean;
     reducedMotion?: boolean;
 }
 
@@ -58,7 +65,17 @@ const useBoardHeight = () => {
  * Plinko. Reskinned from the Rewards Arcade prototype (same prize logic) to the
  * neon arcade design. Every ball costs one token and every bin is a prize.
  */
-export const PlinkoScreen = ({ game, tokenBalance, onPlay, onBack, onPointsWon, allowMultiDrop = true, reducedMotion, onNavigate }: PlinkoScreenProps) => {
+export const PlinkoScreen = ({
+    game,
+    tokenBalance,
+    onPlay,
+    onBack,
+    onPointsWon,
+    allowMultiDrop = true,
+    rememberSessionWinnings = true,
+    reducedMotion,
+    onNavigate,
+}: PlinkoScreenProps) => {
     const board = game.board;
     const boardRef = useRef<PlinkoBoardHandle>(null);
     const results = useRef(new Map<string, PlayResult>());
@@ -68,6 +85,7 @@ export const PlinkoScreen = ({ game, tokenBalance, onPlay, onBack, onPointsWon, 
     const [error, setError] = useState<string | null>(null);
     const [announcement, setAnnouncement] = useState("");
     const boardHeight = useBoardHeight();
+    const { totals: sessionWinnings, record: recordWin } = useSessionWinnings(game.id, { persist: rememberSessionWinnings });
 
     // Batch tracking: plays requested but not yet landed (or failed), and points they won.
     const outstanding = useRef(0);
@@ -123,10 +141,11 @@ export const PlinkoScreen = ({ game, tokenBalance, onPlay, onBack, onPointsWon, 
         const { prize } = result;
         const isPoints = prize.type === "points";
         settleOne(isPoints ? (prize.points ?? 0) : 0);
+        recordWin(prize);
         setAnnouncement(`You won ${prize.label}.`);
         sfx.land(!isPoints);
         if (!isPoints) setModalQueue((q) => [...q, prize]);
-    }, [settleOne]);
+    }, [settleOne, recordWin]);
 
     const tiersCenterOut = board ? [...board.tiers].reverse() : [];
 
@@ -171,13 +190,13 @@ export const PlinkoScreen = ({ game, tokenBalance, onPlay, onBack, onPointsWon, 
                         Let it drop <IconCrown className="size-6 -translate-y-3 rotate-12 text-arcade-acid" />
                     </p>
                 }
-                hud={["Gravity", "plays different", "here"]}
                 about={game.about ?? game.description}
                 facts={[
                     { label: "Cost", value: `${game.tokenCost} token per ball` },
                     ...(game.topPrizeLabel ? [{ label: "Top prize", value: game.topPrizeLabel }] : []),
                 ]}
-                status={error ?? (tokenBalance <= 0 && inFlight === 0 ? errorCopy.INSUFFICIENT_TOKENS : "Every bin is a prize")}
+                summary={<SessionWinnings totals={sessionWinnings} reducedMotion={reducedMotion} />}
+                status={error ?? (tokenBalance <= 0 && inFlight === 0 ? errorCopy.INSUFFICIENT_TOKENS : undefined)}
                 statusIsError={!!error}
                 actions={
                     <>

@@ -4,7 +4,6 @@ import { ArcadeBackdrop } from "../components/arcade-backdrop";
 import { ArcadeButton } from "../components/arcade-button";
 import { ArcadeHeader, type ArcadeHeaderProps } from "../components/arcade-header";
 import { ArcadeWordmark } from "../components/arcade-wordmark";
-import { HudLabel } from "../components/hud-label";
 
 export interface ArcadeEnterScreenProps {
     /** Handle the header's Achievements / Jackpot buttons (otherwise they link to `ARCADE_ROUTES`). */
@@ -96,12 +95,6 @@ export const ArcadeEnterScreen = ({
                             : "No tokens right now. New tokens arrive with program activity."}
                     </p>
                 )}
-            </div>
-
-            {/* Bottom HUD */}
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-end justify-between p-4 max-md:hidden md:p-8">
-                <HudLabel lines={["More", "than", "a game"]} />
-                <HudLabel lines={["Sound", "High", "scores", "community"]} align="right" />
             </div>
         </ArcadeBackdrop>
     );

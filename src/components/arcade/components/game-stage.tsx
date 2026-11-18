@@ -24,6 +24,8 @@ export interface GameStageProps {
     aboutFooter?: ReactNode;
     /** Primary controls, centered under the game. */
     actions: ReactNode;
+    /** Shown between the actions and the status line, e.g. the "Won this session" strip. */
+    summary?: ReactNode;
     /** One line under the actions (status, errors). Announced politely. */
     status?: ReactNode;
     /** Mark the status line as an error. */
@@ -36,7 +38,7 @@ export interface GameStageProps {
 /**
  * Layout template for every Arcade game screen:
  * title/logo on the left, the game centered, a short description on the right,
- * and the action buttons centered under the game.
+ * the action buttons centered under the game, then an optional summary strip.
  *
  * The side columns are equal width, so the game always sits on the true center line.
  * Below `lg` it stacks: title, game, actions, description.
@@ -50,6 +52,7 @@ export const GameStage = ({
     facts,
     aboutFooter,
     actions,
+    summary,
     status,
     statusIsError,
     children,
@@ -78,6 +81,7 @@ export const GameStage = ({
             <h1 className="font-arcade-display text-6xl leading-none font-black text-white uppercase italic arcade-text-offset lg:hidden">{title}</h1>
             {children}
             <div className="flex w-full max-w-xl flex-wrap items-stretch justify-center gap-4">{actions}</div>
+            {summary}
             <p
                 aria-live="polite"
                 className={cx(
