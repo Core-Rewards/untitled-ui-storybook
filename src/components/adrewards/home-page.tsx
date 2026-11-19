@@ -97,7 +97,6 @@ export const AdRewardsHomePage: FC<AdRewardsHomePageProps> = ({ now, onSignOut =
                             answer={answer}
                             onSubmit={setAnswer}
                             eyebrow="Question of the Week"
-                            nextQuestionLabel="A new question arrives every Monday."
                             image={{ src: spinWheelImage, alt: "Earn a chance to win 10,000 points. Each correct answer to the Question of the Week gets you 1 spin." }}
                         />
                     </div>

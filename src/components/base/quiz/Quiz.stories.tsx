@@ -128,7 +128,6 @@ export const Default: Story = {
     args: {
         question: augustQuestion,
         streak: { currentStreak: 3 },
-        nextQuestionLabel: "A new question unlocks on September 1.",
     },
 };
 
@@ -137,7 +136,6 @@ export const NoStreak: Story = {
     args: {
         question: augustQuestion,
         streak: { currentStreak: 0 },
-        nextQuestionLabel: "A new question unlocks on September 1.",
     },
 };
 
@@ -185,7 +183,6 @@ export const NextRunAfterCycleComplete: Story = {
         question: septemberQuestion,
         streak: { currentStreak: 12 },
         spinsAvailable: 6,
-        nextQuestionLabel: "A new question unlocks on October 1.",
     },
 };
 
@@ -196,7 +193,6 @@ export const AnsweredCorrectly: Story = {
         streak: { currentStreak: 4 },
         answer: { selectedOptionId: "four", isCorrect: true },
         spinsAvailable: 1,
-        nextQuestionLabel: "A new question unlocks on September 1.",
     },
 };
 
@@ -209,7 +205,6 @@ export const AnsweredIncorrectly: Story = {
         question: augustQuestion,
         streak: { currentStreak: 4 },
         answer: { selectedOptionId: "twelve", isCorrect: false },
-        nextQuestionLabel: "A new question unlocks on September 1.",
     },
 };
 
@@ -295,7 +290,6 @@ export const WithVideo: Story = {
     args: {
         question: landscapeVideoQuestion,
         streak: { currentStreak: 3 },
-        nextQuestionLabel: "A new question unlocks on November 1.",
     },
 };
 
@@ -307,7 +301,6 @@ export const WithShortVideo: Story = {
     args: {
         question: shortVideoQuestion,
         streak: { currentStreak: 3 },
-        nextQuestionLabel: "A new question unlocks on November 1.",
     },
 };
 
@@ -318,5 +311,56 @@ export const WithVideoAnswered: Story = {
         streak: { currentStreak: 4 },
         answer: { selectedOptionId: "contractors", isCorrect: true },
         spinsAvailable: 1,
+    },
+};
+
+/**
+ * A return visit after answering correctly, with the compact answered layout.
+ * The card folds to a one-row summary; "Review answer" opens the full question,
+ * verdict and explanation again. Pair with the compact streak for the smallest footprint.
+ */
+export const AnsweredCompact: Story = {
+    args: {
+        question: augustQuestion,
+        streak: { currentStreak: 4 },
+        answer: { selectedOptionId: "four", isCorrect: true },
+        answeredLayout: "compact",
+        streakVariant: "compact",
+    },
+};
+
+/** The compact answered layout after a wrong answer: the summary shows the verdict in amber. */
+export const AnsweredCompactIncorrect: Story = {
+    args: {
+        question: augustQuestion,
+        streak: { currentStreak: 4 },
+        answer: { selectedOptionId: "twelve", isCorrect: false },
+        answeredLayout: "compact",
+        streakVariant: "compact",
+    },
+};
+
+/**
+ * A video question folded down. The video isn't loaded until the user opens the
+ * card with "Review answer".
+ */
+export const AnsweredCompactWithVideo: Story = {
+    args: {
+        question: landscapeVideoQuestion,
+        streak: { currentStreak: 4 },
+        answer: { selectedOptionId: "everyday", isCorrect: true },
+        answeredLayout: "compact",
+    },
+};
+
+/**
+ * Compact layout, answered in place. Submitting keeps the card open so the
+ * verdict is seen, and the "Hide answer" toggle can fold it afterwards.
+ */
+export const CompactAnsweringNow: Story = {
+    args: {
+        question: augustQuestion,
+        streak: { currentStreak: 3 },
+        answeredLayout: "compact",
     },
 };
