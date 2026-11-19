@@ -43,10 +43,14 @@ export interface QuizProps {
      * answers earn a spin.
      */
     streakRequiresCorrectAnswer?: boolean;
-    /** When the next question arrives (e.g. "New question on September 1"). */
-    nextQuestionLabel?: string;
     /** Density of the embedded streak tracker. */
     streakVariant?: "full" | "compact";
+    /**
+     * How the question card looks once answered. `"compact"` folds an answer
+     * recorded before this visit down to a one-row summary the user can expand.
+     * Defaults to `"full"`.
+     */
+    answeredLayout?: "full" | "compact";
     className?: string;
 }
 
@@ -62,8 +66,8 @@ export const Quiz: FC<QuizProps> = ({
     onMilestoneEarned,
     isSubmitting = false,
     streakRequiresCorrectAnswer = false,
-    nextQuestionLabel,
     streakVariant = "full",
+    answeredLayout = "full",
     className,
 }) => {
     const cycleLength = streak.cycleLength ?? DEFAULT_CYCLE_LENGTH;
@@ -189,7 +193,7 @@ export const Quiz: FC<QuizProps> = ({
                 onSubmit={handleSubmit}
                 isSubmitting={isSubmitting}
                 streakRequiresCorrectAnswer={streakRequiresCorrectAnswer}
-                nextQuestionLabel={nextQuestionLabel}
+                answeredLayout={answeredLayout}
             />
 
         </div>
