@@ -235,8 +235,26 @@ export interface SurveyCardSettings {
     body: string;
 }
 
+/** A survey collects opinions; a quiz has right answers and a score. Chosen when it's created. */
+export type SurveyKind = "survey" | "quiz";
+
+/** How a quiz pays its reward. Set per quiz. */
+export type QuizRewardRule = "completion" | "pass" | "tiered";
+
+export interface QuizSettings {
+    /** Percent correct needed to pass, 0 to 100. */
+    passMark: number;
+    rewardRule: QuizRewardRule;
+    /** Tiered only: minimum percent and the amount for it, best tier first. `reward.amount` is the top tier. */
+    tiers?: { minScore: number; amount: number }[];
+}
+
 export interface Survey {
     id: string;
+    /** Defaults to "survey". */
+    kind?: SurveyKind;
+    /** Quizzes only. Quizzes can't be retaken. */
+    quiz?: QuizSettings;
     programId: string;
     /** Short name, shown in the takeover header and on the card. */
     title: string;
@@ -284,6 +302,10 @@ export interface SurveyResponse {
     submittedAt?: string;
     /** Test responses from Preview are never counted or paid. */
     isTest?: boolean;
+    /** Quizzes: the result once submitted. */
+    score?: { correct: number; total: number; passed: boolean };
+    /** What was actually paid on submit (a quiz may pay less, or nothing). */
+    rewardEarned?: SurveyReward;
 }
 
 /** What the platform returns after a successful submit. */

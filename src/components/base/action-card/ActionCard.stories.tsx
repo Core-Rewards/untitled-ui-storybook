@@ -1,8 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { BookOpen01, Calendar, CalendarDate, Clock, ClockStopwatch, List } from "@untitledui/icons";
+import { BookOpen01, Calendar, CalendarDate, Clock, ClockStopwatch, GraduationHat01, List } from "@untitledui/icons";
 import { fn } from "storybook/test";
 import { Badge } from "@/components/base/badges/badge";
 import { ActionCard } from "./action-card";
+import { ActionRow } from "./action-row";
 
 const meta = {
     title: "Base/ActionCard",
@@ -91,4 +92,38 @@ export const Training: Story = {
         progress: { current: 1, total: 2 },
         action: { label: "Continue", onPress: fn() },
     },
+};
+
+// ─── Compact row ─────────────────────────────────────────────────────────────
+
+/** `ActionRow`: the compact list version, for pages like Surveys & quizzes and the dashboard's "More to do". Stacks when narrow. */
+export const Rows: Story = {
+    name: "ActionRow (compact)",
+    render: () => (
+        <div className="flex flex-col gap-3">
+            <ActionRow
+                icon={GraduationHat01}
+                eyebrow="New quiz"
+                title="2027 Fungicide Lineup Quiz"
+                meta={[
+                    { label: "About 1 min", icon: Clock },
+                    { label: "6 questions", icon: List },
+                ]}
+                badge={
+                    <Badge color="gray" size="md">
+                        Pass to earn 250 points
+                    </Badge>
+                }
+                action={{ label: "Start", onPress: fn() }}
+            />
+            <ActionRow
+                icon={GraduationHat01}
+                eyebrow="Quiz completed"
+                title="Q3 Agronomy Quiz"
+                status="completed"
+                meta={[{ label: "Completed Oct 12", icon: CalendarDate }]}
+                statusLine="Scored 5 of 6 · Passed · +300 points"
+            />
+        </div>
+    ),
 };
