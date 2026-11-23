@@ -182,7 +182,7 @@ export type SurveyAnswers = Record<string, AnswerValue | undefined>;
 
 // ─── Logic ───────────────────────────────────────────────────────────────────
 
-export type LogicOperator = "is" | "is_not" | "includes" | "lt" | "lte" | "gt" | "gte" | "answered" | "not_answered";
+export type LogicOperator = "is" | "is_not" | "is_any_of" | "is_none_of" | "includes" | "lt" | "lte" | "gt" | "gte" | "answered" | "not_answered";
 
 export interface LogicCondition {
     /** Question whose answer is checked. Usually the question the rule sits on. */
@@ -190,6 +190,8 @@ export interface LogicCondition {
     operator: LogicOperator;
     /** Option id, number or text to compare against. Not used by answered / not_answered. */
     value?: string | number;
+    /** For is_any_of / is_none_of: matches when the answer is (or includes) any of these. */
+    values?: Array<string | number>;
 }
 
 /** A question id, or "end" to finish the survey. */

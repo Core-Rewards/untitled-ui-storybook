@@ -89,6 +89,10 @@ export const evaluateCondition = (condition: LogicCondition, answers: SurveyAnsw
             return !(values.length === 1 && values[0] === target);
         case "includes":
             return target !== undefined && values.includes(target);
+        case "is_any_of":
+            return values.some((v) => (condition.values ?? []).includes(v));
+        case "is_none_of":
+            return values.length > 0 && !values.some((v) => (condition.values ?? []).includes(v));
         case "lt":
             return num !== undefined && typeof target === "number" && num < target;
         case "lte":

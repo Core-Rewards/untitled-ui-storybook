@@ -2,7 +2,8 @@ import { useEffect, useId, useRef } from "react";
 import { ArrowRight } from "@untitledui/icons";
 import { cx } from "@/utils/cx";
 import { useSurveyCopy } from "../survey-context";
-import type { AnswerValue, SurveyQuestion as SurveyQuestionType } from "../survey-types";
+import type { AnswerValue, QuestionOption, SurveyQuestion as SurveyQuestionType } from "../survey-types";
+import { EditableText, OptionsEditor } from "./question-editor";
 import { DropdownInput, MultipleChoiceInput, YesNoInput } from "./choice-questions";
 import { FileUploadInput } from "./file-upload-question";
 import { MatrixInput } from "./matrix-question";
@@ -28,7 +29,18 @@ export interface SurveyQuestionProps {
     /** Title and description with answers piped in. Defaults to the question's own. */
     title?: string;
     description?: string;
+    /**
+     * Builder mode: the question renders as participants see it, but its title,
+     * description and answer options are edited in place. Answering is disabled.
+     */
+    editor?: QuestionEditor;
     className?: string;
+}
+
+export interface QuestionEditor {
+    onChange: (question: SurveyQuestionType) => void;
+    /** Put the cursor in the title (a just-added question). */
+    autoFocus?: boolean;
 }
 
 /**
@@ -48,6 +60,7 @@ export const SurveyQuestion = ({
     autoFocusTitle = false,
     title,
     description,
+    editor,
     className,
 }: SurveyQuestionProps) => {
     const { copy } = useSurveyCopy();
@@ -81,16 +94,58 @@ export const SurveyQuestion = ({
                         <span className="sr-only hidden @xl/survey:inline">{copy.questionLabel(number)}</span>
                     </p>
                 )}
-                <h2 ref={titleRef} id={labelId} tabIndex={-1} className="text-display-xs font-semibold text-primary outline-hidden @xl/survey:text-display-sm">
-                    {title ?? question.title}
-                    {question.required && !isStatement && <span className="sr-only"> (required)</span>}
-                </h2>
-                {(description ?? question.description) && <p className="text-md text-tertiary @xl/survey:text-lg">{description ?? question.description}</p>}
+                {editor ? (
+                    <EditableText
+                        label={`Question ${number ?? ""} text`.replace("  ", " ")}
+                        placeholder="Type your question here"
+                        value={question.title}
+                        onChange={(t) => editor.onChange({ ...question, title: t })}
+                        autoFocus={editor.autoFocus}
+                        singleLine
+                        className="text-display-xs font-semibold text-primary @xl/survey:text-display-sm"
+                    />
+                ) : (
+                    <h2
+                        ref={titleRef}
+                        id={labelId}
+                        tabIndex={-1}
+                        className="text-display-xs font-semibold text-primary outline-hidden @xl/survey:text-display-sm"
+                    >
+                        {title ?? question.title}
+                        {question.required && !isStatement && <span className="sr-only"> (required)</span>}
+                    </h2>
+                )}
+                {editor && question.description !== undefined ? (
+                    <EditableText
+                        label="Description"
+                        placeholder="Description (optional)"
+                        value={question.description}
+                        onChange={(d) => editor.onChange({ ...question, description: d })}
+                        className="text-md text-tertiary @xl/survey:text-lg"
+                    />
+                ) : (
+                    (description ?? question.description) && <p className="text-md text-tertiary @xl/survey:text-lg">{description ?? question.description}</p>
+                )}
             </div>
 
-            {renderInput(question, value, onChange, shared)}
+            {editor && "options" in question ? (
+                <OptionsEditor
+                    label="Answer options"
+                    options={question.options}
+                    onChange={(options: QuestionOption[]) => editor.onChange({ ...question, options } as SurveyQuestionType)}
+                    autoFocusFirstEmpty={editor.autoFocus && !!question.title}
+                    showLetters={question.type !== "dropdown"}
+                />
+            ) : editor ? (
+                // The rest preview as participants see them; their settings live in the side panel.
+                <div inert className="pointer-events-none select-none">
+                    {renderInput(question, undefined, () => {}, { ...shared, shortcuts: false })}
+                </div>
+            ) : (
+                renderInput(question, value, onChange, shared)
+            )}
 
-            {!isStatement && <QuestionMessage id={messageId}>{message}</QuestionMessage>}
+            {!isStatement && !editor && <QuestionMessage id={messageId}>{message}</QuestionMessage>}
         </div>
     );
 };

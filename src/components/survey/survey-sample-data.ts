@@ -93,7 +93,7 @@ export const getSatisfactionSurvey = (locale: SurveyLocale = "en", overrides: Pa
                 max: 5,
                 minLabel: t.q1Min,
                 maxLabel: t.q1Max,
-                logic: [{ when: { questionId: "q1", operator: "lte", value: 2 }, goTo: "q2" }],
+                logic: [{ when: { questionId: "q1", operator: "is_any_of", values: [1, 2] }, goTo: "q2" }],
                 defaultTarget: "q3",
             },
             {

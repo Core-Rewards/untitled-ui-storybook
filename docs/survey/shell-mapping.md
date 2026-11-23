@@ -106,7 +106,18 @@ AdminUI already has most of what the admin wireframes need. Plan for that pass:
 | Tables | This repo's `Base/Tables` |
 | Undo toast | New (neither repo has one) |
 
-Porting AdminUI components will add `recharts` and possibly `motion` as dependencies.
+Results charts can be plain bars like the wireframes, so `recharts` should not be needed.
+
+### Phase 1 as built (admin shell, survey list, New survey)
+
+- **Admin shell:** `Base/AdminShell` reuses this repo's `AppSidebar` instead of porting AdminUI's sidebar. AdminUI's account card needs the `react-aria` package, and the two sidebars were already near-identical. In admin, the account card is the **program switcher** (current program, others in its menu), which covers the wireframe's "Switch program".
+- **AI assistant:** AdminUI's AI drawer is ported as-is (`application/ai-chat-sidebar.tsx`), with configurable starter prompts. No new packages were needed.
+- **Navigation:** AdminUI's links with **Surveys** added after Arcade Controls.
+- **Ported from AdminUI:** tabs, modal, dropdown menu, avatar, checkbox (`base/checkbox`) and radio buttons. AdminUI's empty state was not ported (it pulls in about 4,000 lines of illustrations); the survey empty state uses `FeaturedIcon` instead.
+- **Table:** the list uses this repo's `DataTable` (search and sorting built in) with the ported tabs for status.
+- **Deviation (Mike's call):** New survey (A2) is a **page**, not the modal the plan describes, and it **merges the template library**. It offers Start blank, the Core template library (search, category filter, starters first, question preview) and "Copy a survey you've run", with a sticky panel for the name and base language. The list's separate Template library button is gone.
+- **Deviation:** the wireframe's "Ask AI" and "Account" links at the bottom of the sidebar are replaced by the AI sparkles button (top-right) and the account card's menu, as in AdminUI.
+
 
 ## 7. Build order for this pass
 
@@ -122,3 +133,13 @@ Porting AdminUI components will add `recharts` and possibly `motion` as dependen
 
 - `survey-feature-handoff/` is untracked and won't be committed. I can add it to `.gitignore` if you like.
 - To get the Arcade work back: `git checkout arcade && git stash pop`.
+
+### Phase 2 as built (builder, Questions step)
+
+- **Layout:** the admin shell's sidebar collapses to a 64px icon rail on builder pages (`sidebarMode="rail"`); its menu button opens the full sidebar, with the program switcher, as a drawer. The builder's top bar sits inside the content area as a page header (breadcrumb, title, status, save state, Undo, EN/FR, Preview, Next), with `Base/ProgressSteps` under it.
+- **Canvas:** the participant `SurveyQuestion` gained an editor mode, so what admins edit is exactly what participants see. Title, description and choice options are edited in place.
+- **Deviation:** scale end labels, matrix rows and columns, and other type settings are edited in the right panel rather than on the canvas.
+- **Logic:** rules support "is any of" / "is none of" (the wireframe's chips), "is less/more than" for numbers, and "is answered / skipped" for optional questions. Targets are later questions or the end, so the builder can't create loops; the check still flags them.
+- **New shared pieces:** `Base/ProgressSteps`, `Base/Toast` (with Undo), and a 12-question bank with French included.
+- **Not yet:** the FR button only shows the counter; the side-by-side French view, intro and thank-you editing, Reward and Schedule come in phase 3.
+
