@@ -1,7 +1,7 @@
 import { getSatisfactionSurvey } from "../survey-sample-data";
 import type { Survey, SurveyQuestion } from "../survey-types";
 import { extractStrings } from "./builder-model";
-import type { Translations } from "./builder-model";
+import type { SurveyStringEntry, Translations } from "./builder-model";
 
 /** The wireframes' draft: 2026 Program Satisfaction, in English, as the builder edits it. */
 export const getBuilderSurvey = (): Survey => ({ ...getSatisfactionSurvey("en"), status: "draft" });
@@ -165,3 +165,15 @@ export const QUESTION_BANK: BankQuestion[] = [
         fr: { title: "Qu'est-ce qui rendrait le programme plus utile pour vous?" },
     },
 ];
+
+/**
+ * Stand-in for the AI translation call in stories: uses known French for the sample
+ * survey, and otherwise returns a clearly marked placeholder for review. Waits a
+ * moment like a real request.
+ */
+export const mockDraftFrench = async (entries: SurveyStringEntry[]): Promise<Translations> => {
+    await new Promise((r) => setTimeout(r, 900));
+    const known = new Map(extractStrings(getSatisfactionSurvey("fr")).map((s) => [s.key, s.text]));
+    const byEnglish = new Map(extractStrings(getSatisfactionSurvey("en")).map((s) => [s.text, known.get(s.key)]));
+    return Object.fromEntries(entries.map((e) => [e.key, known.get(e.key) ?? byEnglish.get(e.text) ?? `[FR] ${e.text}`]));
+};

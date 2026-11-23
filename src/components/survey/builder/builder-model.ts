@@ -1,4 +1,4 @@
-import type { QuestionOption, Survey, SurveyQuestion, SurveyQuestionType } from "../survey-types";
+import type { QuestionOption, Survey, SurveyLocale, SurveyQuestion, SurveyQuestionType } from "../survey-types";
 import { typeInfo } from "./question-catalog";
 
 /*
@@ -175,3 +175,32 @@ export const translationProgress = (survey: Survey, translations: Translations) 
     const done = strings.filter((s) => translations[s.key]?.trim()).length;
     return { done, total: strings.length };
 };
+
+/**
+ * The survey as if it were open now, for previews in the builder (the participant
+ * components hide drafts and scheduled surveys from participants).
+ */
+export const asLivePreview = (survey: Survey, now: Date = new Date()): Survey => ({
+    ...survey,
+    status: "live",
+    opensAt: new Date(now.getTime() - 86_400_000).toISOString(),
+    closesAt: new Date(Math.max(now.getTime() + 86_400_000, new Date(survey.closesAt).getTime())).toISOString(),
+});
+
+// ─── Languages ───────────────────────────────────────────────────────────────
+
+export const LANGUAGE_NAMES: Record<SurveyLocale, string> = { en: "English", fr: "French" };
+/** How each language names itself, for column headers. */
+export const NATIVE_NAMES: Record<SurveyLocale, string> = { en: "English", fr: "Français" };
+
+/** The language a survey can add beside its base: French for English surveys, English for French ones. */
+export const otherLocale = (base: SurveyLocale): SurveyLocale => (base === "en" ? "fr" : "en");
+
+/** The survey's second language, if it offers one. Not every survey needs a translation. */
+export const secondLocaleOf = (survey: Survey): SurveyLocale | undefined => (survey.enabledLocales ?? [survey.locale]).find((l) => l !== survey.locale);
+
+/** Turn the second language on or off. Translations are kept either way, so switching back restores them. */
+export const setSecondLocale = (survey: Survey, on: boolean): Survey => ({
+    ...survey,
+    enabledLocales: on ? [survey.locale, otherLocale(survey.locale)] : [survey.locale],
+});

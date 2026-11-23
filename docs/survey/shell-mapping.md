@@ -141,5 +141,32 @@ Results charts can be plain bars like the wireframes, so `recharts` should not b
 - **Deviation:** scale end labels, matrix rows and columns, and other type settings are edited in the right panel rather than on the canvas.
 - **Logic:** rules support "is any of" / "is none of" (the wireframe's chips), "is less/more than" for numbers, and "is answered / skipped" for optional questions. Targets are later questions or the end, so the builder can't create loops; the check still flags them.
 - **New shared pieces:** `Base/ProgressSteps`, `Base/Toast` (with Undo), and a 12-question bank with French included.
-- **Not yet:** the FR button only shows the counter; the side-by-side French view, intro and thank-you editing, Reward and Schedule come in phase 3.
+
+### Phase 3 as built (French, Settings, Reward, Schedule and publish)
+
+- **French (A5):** EN | FR in the builder header switches to the side-by-side view. Strings come from one list (`extractStrings`), so new questions grow the counter automatically. "Draft missing with AI" calls `onDraftTranslations`; drafts are marked Review until edited or approved, and unreviewed drafts are a checklist warning, not a blocker.
+- **Settings (A6), Reward (A7):** form steps with a live "What participants see" panel built from the real participant components (dashboard card, intro, thank-you). Reward types not enabled for the program show disabled.
+- **Schedule and publish (A8):** dates and times in the survey's timezone, invite and reminder emails, and the review checklist (`buildChecklist`). Errors block Publish and link to the step that fixes them; a future open date turns Publish into "Schedule for …". The confirmation lists what happens next. Publishing clears Undo history.
+- **Step indicator:** visited steps show done, or "needs attention" when a blocking checklist item belongs to them.
+- **Known gap:** editing English text after French exists doesn't yet flag that French as possibly out of date.
+
+### Phase 4 as built (Results)
+
+- **Summary (A9) and Responses (A10)** in the admin shell, calculated from raw responses (`results-aggregate.ts`), so filters (dates, language, completed or partial, and region for identified surveys) recompute every number.
+- **Privacy:** anonymous surveys show no identity anywhere, including exports, and any filter leaving fewer than 5 responses hides the results with an explanation.
+- **Responses:** paginated table; each response opens in the ported AdminUI slideout drawer, with Newer / Older.
+- **Export:** CSV is generated in the browser (raw or summary, with or without partials; EN and FR answers share columns plus a language column). Excel is left to the platform (`onExport`).
+- **Deviation:** results don't update live in Storybook; the platform would refresh the responses.
+- The Survey list story now wires the whole admin journey: list → New survey → builder, Edit → builder, View results → Results.
+
+### Languages are per survey
+
+Not every survey is translated. A survey is written in one base language and can optionally be offered in the other (`enabledLocales`):
+
+- **New survey page:** "Also offer it in French" (on by default when the template or copied survey already has French).
+- **Settings:** a Languages card turns the second language on or off. Translations are kept when it's off, so switching back restores them.
+- **Builder header:** the EN | FR switch and counter only appear for bilingual surveys; otherwise a "+ French" button adds it.
+- **Publish checklist:** only requires a translation when the second language is on.
+- **Results and export:** the language filter and the shared-columns note only appear for bilingual surveys.
+- **French-base surveys:** labels follow the base language, so an English translation works the same way.
 

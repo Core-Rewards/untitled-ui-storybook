@@ -1,11 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
-import { AdminDemoShell } from "../stories/admin-demo-shell";
-import { getBuilderSurvey, getBuilderTranslations } from "./builder-sample-data";
+import { ADMIN_NOW, AdminDemoShell } from "../stories/admin-demo-shell";
+import { extractStrings } from "./builder-model";
+import { getSatisfactionSurvey } from "../survey-sample-data";
+import { getBuilderSurvey, getBuilderTranslations, mockDraftFrench } from "./builder-sample-data";
 import { SurveyBuilder } from "./survey-builder";
 
 const meta = {
-    title: "Survey/Admin/Builder/Questions step",
+    title: "Survey/Admin/Builder",
     component: SurveyBuilder,
     parameters: {
         layout: "fullscreen",
@@ -37,7 +39,11 @@ const meta = {
         onChange: fn(),
         onExit: fn(),
         onStepChange: fn(),
-        onOpenTranslations: fn(),
+        onDraftTranslations: mockDraftFrench,
+        onPublish: fn(),
+        enabledRewardTypes: ["points", "sweepstakes"],
+        eligibleParticipants: 1240,
+        now: ADMIN_NOW,
     },
 } satisfies Meta<typeof SurveyBuilder>;
 
@@ -58,3 +64,40 @@ export const MobileCanvas: Story = { name: "Mobile canvas", args: { initialFrame
 
 /** A multiple-choice question selected, to edit options in place. */
 export const EditingOptions: Story = { name: "Editing options", args: { initialSelectedId: "q4" } };
+
+// ─── French, Settings, Reward, Schedule and publish ─────────────────────────
+
+/** A5: English beside French, 18 of 24 done, missing strings highlighted. Try “Draft missing with AI”. */
+export const French: Story = { name: "French translation", args: { initialView: "translate" } };
+
+/** A6: anonymity, intro, thank-you and dashboard card, with the participant preview. */
+export const Settings: Story = { args: { initialStep: "settings" } };
+
+/** A7: reward type (arcade spins aren't enabled for this program), amount and maximum cost. */
+export const Reward: Story = { args: { initialStep: "reward" } };
+
+/** A8 with French incomplete: the checklist blocks Publish and links to the French view. */
+export const ScheduleBlocked: Story = { name: "Schedule and publish (blocked)", args: { initialStep: "schedule" } };
+
+/** A8 with everything ready, opening in the future, so the button reads “Schedule for …”. */
+export const ScheduleReady: Story = {
+    name: "Schedule and publish (ready)",
+    args: {
+        initialStep: "schedule",
+        survey: { ...getBuilderSurvey(), opensAt: "2026-12-14T09:00:00-05:00", closesAt: "2026-12-31T23:30:00-05:00" },
+        translations: Object.fromEntries(extractStrings(getSatisfactionSurvey("fr")).map((e) => [e.key, e.text])),
+    },
+};
+
+// ─── English only ────────────────────────────────────────────────────────────
+
+const englishOnly = { ...getBuilderSurvey(), enabledLocales: ["en" as const] };
+
+/** Not every survey is translated: no EN | FR switch, just “+ French” to add it. */
+export const EnglishOnly: Story = { name: "English only", args: { survey: englishOnly, translations: {} } };
+
+/** English only, so the checklist has no French item and Publish is ready. */
+export const EnglishOnlySchedule: Story = {
+    name: "English only · Schedule and publish",
+    args: { survey: englishOnly, translations: {}, initialStep: "schedule" },
+};

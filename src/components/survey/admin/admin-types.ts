@@ -57,4 +57,6 @@ export interface NewSurveyRequest {
     duplicateOfId?: string;
     name: string;
     baseLocale: SurveyLocale;
+    /** Also offer the survey in the other language (French for English surveys). Not every survey needs it. */
+    bilingual: boolean;
 }
