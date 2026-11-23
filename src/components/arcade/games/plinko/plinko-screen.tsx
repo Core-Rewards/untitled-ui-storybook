@@ -9,7 +9,6 @@ import { ArcadeHeader, type ArcadeHeaderProps } from "../../components/arcade-he
 import { GameStage } from "../../components/game-stage";
 import { PrizeModal } from "../../components/prize-modal";
 import { SessionWinnings } from "../../components/session-winnings";
-import { SoundToggle } from "../../components/sound-toggle";
 import { sfx } from "../../sound/arcade-sound";
 import { PlinkoBoard, type PlinkoBoardHandle } from "./plinko-board";
 import { binForTier } from "./plinko-engine";
@@ -178,7 +177,6 @@ export const PlinkoScreen = ({
             <ArcadeHeader
                 back={onBack ? { label: "All games", onPress: onBack } : undefined}
                 tokenBalance={tokenBalance}
-                actions={<SoundToggle />}
                 howToPlay={howToPlay}
                 onNavigate={onNavigate}
             />

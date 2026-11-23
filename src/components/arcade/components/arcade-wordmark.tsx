@@ -1,6 +1,7 @@
-import type { CSSProperties } from "react";
+import { type CSSProperties, useEffect } from "react";
 import { cx } from "@/utils/cx";
 import { wordmarkLetters } from "../assets";
+import { sfx } from "../sound/arcade-sound";
 
 export interface ArcadeWordmarkProps {
     /**
@@ -13,6 +14,8 @@ export interface ArcadeWordmarkProps {
     idleFloat?: boolean;
     /** Delay before the first letter enters, in ms. */
     startDelayMs?: number;
+    /** Play a quick swoosh as each letter slides in (`enter` only). Respects the arcade sound toggle. */
+    sound?: boolean;
     className?: string;
 }
 
@@ -20,6 +23,9 @@ export interface ArcadeWordmarkProps {
  * Aspect ratio of the static logo (`assets/layers/arcade-logo.webp`, trimmed to its artwork).
  * The wordmark box uses the same ratio so it can swap 1:1 with the static logo.
  */
+/** Offset from a letter's animation start to its swoosh, so the sound peaks as the letter snaps in. */
+const SWOOSH_LEAD_MS = 40;
+
 export const WORDMARK_ASPECT = 2085 / 733;
 
 /**
@@ -42,8 +48,18 @@ const LETTER_LAYOUT: { left: number; top: number; width: number }[] = [
  * animate on its own. Once the entrance finishes, the letters rest exactly in the
  * static logo's lockup.
  */
-export const ArcadeWordmark = ({ motion = "enter", idleFloat = false, startDelayMs = 0, className }: ArcadeWordmarkProps) => {
+export const ArcadeWordmark = ({ motion = "enter", idleFloat = false, startDelayMs = 0, sound = true, className }: ArcadeWordmarkProps) => {
     const floats = motion === "float" || (motion === "enter" && idleFloat);
+
+    // One swoosh per letter, timed to its entrance. Browsers block audio until the page
+    // has had a click/tap, so a cold load stays silent; arriving from in-app navigation plays.
+    useEffect(() => {
+        if (motion !== "enter" || !sound) return;
+        const timers = wordmarkLetters.map((letter, index) =>
+            window.setTimeout(() => sfx.letterIn(index), startDelayMs + letter.delayMs + SWOOSH_LEAD_MS),
+        );
+        return () => timers.forEach(window.clearTimeout);
+    }, [motion, sound, startDelayMs]);
 
     return (
         <div role="img" aria-label="Arcade" className={cx("relative w-full", className)} style={{ aspectRatio: WORDMARK_ASPECT }}>
