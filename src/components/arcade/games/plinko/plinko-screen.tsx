@@ -9,7 +9,6 @@ import { ArcadeHeader, type ArcadeHeaderProps } from "../../components/arcade-he
 import { GameStage } from "../../components/game-stage";
 import { PrizeModal } from "../../components/prize-modal";
 import { SessionWinnings } from "../../components/session-winnings";
-import { SoundToggle } from "../../components/sound-toggle";
 import { sfx } from "../../sound/arcade-sound";
 import { PlinkoBoard, type PlinkoBoardHandle } from "./plinko-board";
 import { binForTier } from "./plinko-engine";
@@ -130,7 +129,8 @@ export const PlinkoScreen = ({
         sfx.unlock();
         const n = Math.min(count, Math.floor(available / game.tokenCost));
         outstanding.current += n;
-        for (let i = 0; i < n; i++) window.setTimeout(() => void dropOne(), i * 260);
+        // Gap between balls in a multi-drop: ~1.25 peg hops, so balls stay visibly apart.
+        for (let i = 0; i < n; i++) window.setTimeout(() => void dropOne(), i * 400);
     };
 
     const handleLand = useCallback((id: string) => {
@@ -178,7 +178,6 @@ export const PlinkoScreen = ({
             <ArcadeHeader
                 back={onBack ? { label: "All games", onPress: onBack } : undefined}
                 tokenBalance={tokenBalance}
-                actions={<SoundToggle />}
                 howToPlay={howToPlay}
                 onNavigate={onNavigate}
             />

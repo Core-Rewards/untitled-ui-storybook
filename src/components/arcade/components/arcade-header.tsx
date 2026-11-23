@@ -16,6 +16,7 @@ import { IconMenu } from "@/components/arcade/components/arcade-icons";
 import { cx } from "@/utils/cx";
 import { ARCADE_ROUTES } from "../routes";
 import { ArcadeButton } from "./arcade-button";
+import { SoundToggle } from "./sound-toggle";
 import { TokenBalance } from "./token-balance";
 
 export type ArcadeNavItem = "how-to-play" | "achievements" | "jackpot";
@@ -29,7 +30,7 @@ export interface ArcadeHeaderProps {
     current?: ArcadeNavItem;
     /** Content of the How to Play dialog. Each game can pass its own rules. */
     howToPlay?: ReactNode;
-    /** Extra controls placed just left of the token counter (e.g. the sound toggle). */
+    /** Controls placed just left of the token counter. Defaults to the sound toggle, since music plays on every screen. */
     actions?: ReactNode;
     /**
      * Handle Achievements / Jackpot yourself (e.g. state-based navigation in Storybook).
@@ -90,7 +91,7 @@ const HowToPlayDialog = ({ children, isOpen, onOpenChange }: { children?: ReactN
  * Back (far left) · How to Play / Achievements / Jackpot (center) · Tokens (far right).
  * Used on every Arcade screen; the Enter screen omits `back`.
  */
-export const ArcadeHeader = ({ back, tokenBalance, isLoading, current, howToPlay, actions, onNavigate, className }: ArcadeHeaderProps) => {
+export const ArcadeHeader = ({ back, tokenBalance, isLoading, current, howToPlay, actions = <SoundToggle />, onNavigate, className }: ArcadeHeaderProps) => {
     const [howOpen, setHowOpen] = useState(false);
     const linkProps = (section: "achievements" | "jackpot") =>
         onNavigate ? { onPress: () => onNavigate(section) } : { href: ARCADE_ROUTES[section] };
