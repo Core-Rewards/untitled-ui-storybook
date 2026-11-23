@@ -252,6 +252,21 @@ export interface Survey {
     thankYou: SurveyThankYou;
     card: SurveyCardSettings;
     questions: SurveyQuestion[];
+    /** Languages participants can take it in. Base language first. Defaults to just the base. */
+    enabledLocales?: SurveyLocale[];
+    /** Invite and reminder emails (admin settings; participants never see these). */
+    emails?: SurveyEmails;
+    /** Completed responses so far. Anonymity locks once this is above 0. */
+    responseCount?: number;
+}
+
+export interface SurveyEmails {
+    /** Invite everyone in the program when the survey opens. On by default. */
+    inviteAtOpen: boolean;
+    /** Remind people who haven't finished. */
+    reminder: boolean;
+    /** How many days before close the reminder goes out. */
+    reminderDaysBeforeClose: number;
 }
 
 // ─── Response (one participant's progress) ───────────────────────────────────

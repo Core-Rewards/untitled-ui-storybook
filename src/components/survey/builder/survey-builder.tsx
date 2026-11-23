@@ -1,21 +1,39 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Copy06, Eye, FlipBackward, Laptop01, Phone01, Trash01 } from "@untitledui/icons";
+import { ArrowLeft, ArrowRight, Copy06, Eye, FlipBackward, Laptop01, Phone01, Plus, Trash01 } from "@untitledui/icons";
 import { Heading } from "react-aria-components";
 import { Dialog, Modal, ModalOverlay } from "@/components/application/modals/modal";
 import { Badge } from "@/components/base/badges/badge";
 import { Button } from "@/components/base/buttons/button";
 import { ProgressSteps } from "@/components/base/progress-steps/progress-steps";
+import type { ProgressStepStatus } from "@/components/base/progress-steps/progress-steps";
 import { Toast } from "@/components/base/toast/toast";
 import { cx } from "@/utils/cx";
 import { statusBadge } from "../admin/admin-format";
 import { SurveyPlayer } from "../participant/survey-player";
 import { SurveyQuestion } from "../questions/survey-question";
 import { SurveyLocaleProvider } from "../survey-locale-provider";
-import type { Survey, SurveyQuestion as SurveyQuestionData, SurveyQuestionType } from "../survey-types";
+import type { Survey, SurveyQuestion as SurveyQuestionData, SurveyQuestionType, SurveyRewardType } from "../survey-types";
 import { AddQuestionPicker } from "./add-question-picker";
 import type { BankQuestion } from "./builder-sample-data";
-import { changeQuestionType, createQuestion, newOptionId, newQuestionId, translationProgress } from "./builder-model";
-import type { Translations } from "./builder-model";
+import {
+    LANGUAGE_NAMES,
+    changeQuestionType,
+    createQuestion,
+    extractStrings,
+    newOptionId,
+    newQuestionId,
+    otherLocale,
+    secondLocaleOf,
+    setSecondLocale,
+    translationProgress,
+} from "./builder-model";
+import type { SurveyStringEntry, Translations } from "./builder-model";
+import { buildChecklist } from "./publish-checklist";
+import type { ChecklistTarget } from "./publish-checklist";
+import { RewardStep } from "./reward-step";
+import { ScheduleStep } from "./schedule-step";
+import { SettingsStep } from "./settings-step";
+import { TranslationView } from "./translation-view";
 import { LogicPanel } from "./logic-panel";
 import { QuestionOutline } from "./question-outline";
 import type { OutlineSelection } from "./question-outline";
@@ -37,11 +55,22 @@ export interface SurveyBuilderProps {
     onChange?: (survey: Survey, translations: Translations) => void;
     /** Back to the survey list. */
     onExit: () => void;
-    /** Next, or a click on the step indicator. Only Questions is built so far. */
+    /** Called when the admin moves between steps. */
     onStepChange?: (step: BuilderStep) => void;
-    /** EN | FR switch. The French view comes with the Settings phase. */
-    onOpenTranslations?: () => void;
+    /** AI first draft for missing second-language strings (French for English surveys). The result is marked for review. */
+    onDraftTranslations?: (entries: SurveyStringEntry[]) => Promise<Translations>;
+    /** Publish or schedule, after the review checklist passes. */
+    onPublish?: (survey: Survey, translations: Translations) => void;
     programName?: string;
+    /** Reward types Core has turned on for this program. */
+    enabledRewardTypes?: SurveyRewardType[];
+    /** Everyone in the program, for the reward's maximum cost. */
+    eligibleParticipants?: number;
+    /** Defaults to now. Set in stories so dates never drift. */
+    now?: Date;
+    initialStep?: BuilderStep;
+    /** Open on the side-by-side translation view (surveys with a second language only). */
+    initialView?: "build" | "translate";
     /** For stories. */
     initialSelectedId?: OutlineSelection;
     initialPanelTab?: "settings" | "logic";
@@ -68,10 +97,13 @@ const cloneQuestion = (q: SurveyQuestionData, id: string): SurveyQuestionData =>
 const isTyping = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName));
 
 /**
- * Survey builder, step 1: Questions (A3). Three panes in the admin shell (sidebar
- * collapsed to a rail): the outline, a live canvas that renders the participant's
- * question with its text edited in place (Desktop / Mobile), and the settings
- * panel with Settings and Logic tabs. Every edit autosaves and can be undone.
+ * The survey builder (A3–A8), in the admin shell with the sidebar collapsed to a
+ * rail. Step 1, Questions: the outline, a live canvas that renders the
+ * participant's question with its text edited in place, and the settings panel
+ * with Settings and Logic tabs. Surveys offered in a second language get an EN | FR
+ * switch for the side-by-side translation view; others don't need one.
+ * Steps 2 to 4 are Settings, Reward, and Schedule and publish with the review
+ * checklist. Every edit autosaves and can be undone.
  */
 export const SurveyBuilder = ({
     survey: initialSurvey,
@@ -79,8 +111,14 @@ export const SurveyBuilder = ({
     onChange,
     onExit,
     onStepChange,
-    onOpenTranslations,
+    onDraftTranslations,
+    onPublish,
     programName = "the program",
+    enabledRewardTypes = ["points", "sweepstakes", "arcade_spins"],
+    eligibleParticipants = 1240,
+    now,
+    initialStep = "questions",
+    initialView = "build",
     initialSelectedId,
     initialPanelTab = "settings",
     initialFrame = "desktop",
@@ -98,11 +136,18 @@ export const SurveyBuilder = ({
     const [pendingType, setPendingType] = useState<{ question: SurveyQuestionData; next: SurveyQuestionData; dropped: string[] } | null>(null);
     const [saved, setSaved] = useState<"saved" | "saving">("saved");
     const [previewOpen, setPreviewOpen] = useState(false);
+    const [step, setStep] = useState<BuilderStep>(initialStep);
+    const [view, setView] = useState<"build" | "translate">(initialView);
+    const [aiDrafts, setAiDrafts] = useState<Set<string>>(new Set());
+    const [visited, setVisited] = useState<Set<BuilderStep>>(new Set([initialStep]));
     const pickerAnchor = useRef<Element | null>(null);
     const addButtonRef = useRef<HTMLDivElement>(null);
     const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
     const fr = translationProgress(survey, translations);
+    // Not every survey is translated. The switch and the translation view only exist when a second language is on.
+    const second = secondLocaleOf(survey);
+    const translating = view === "translate" && !!second;
     const selectedQuestion = survey.questions.find((q) => q.id === selectedId);
     const selectedIndex = selectedQuestion ? survey.questions.indexOf(selectedQuestion) : -1;
     const answerable = survey.questions.filter((q) => q.type !== "statement").length;
@@ -146,7 +191,7 @@ export const SurveyBuilder = ({
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
             if (isTyping(e.target) || previewOpen) return;
-            if (e.key === "/" && !e.metaKey && !e.ctrlKey) {
+            if (e.key === "/" && !e.metaKey && !e.ctrlKey && step === "questions" && !translating) {
                 e.preventDefault();
                 pickerAnchor.current = addButtonRef.current;
                 setPicker({ open: true, index: selectedIndex >= 0 ? selectedIndex + 1 : survey.questions.length });
@@ -157,7 +202,7 @@ export const SurveyBuilder = ({
         };
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
-    }, [selectedIndex, survey.questions.length, undo, previewOpen]);
+    }, [selectedIndex, survey.questions.length, undo, previewOpen, step, translating]);
 
     const updateQuestion = (q: SurveyQuestionData) =>
         commit({ ...survey, questions: survey.questions.map((x) => (x.id === q.id ? q : x)) }, translations, selectedId, q.id);
@@ -207,7 +252,28 @@ export const SurveyBuilder = ({
         else updateQuestion({ ...next, logic: q.logic });
     };
 
-    const stepStatus = (id: BuilderStep) => (id === "questions" ? ("current" as const) : ("upcoming" as const));
+    const goTo = (next: BuilderStep, nextView: "build" | "translate" = "build") => {
+        setStep(next);
+        setView(nextView);
+        setVisited((v) => new Set([...v, next]));
+        onStepChange?.(next);
+    };
+
+    // Step indicator: current, needs attention (a visited step with a blocking checklist item), done, or not yet.
+    const checklist = buildChecklist(survey, translations, eligibleParticipants, now);
+    const stepOf: Record<ChecklistTarget, BuilderStep> = {
+        questions: "questions",
+        french: "questions",
+        settings: "settings",
+        reward: "reward",
+        schedule: "schedule",
+    };
+    const stepStatus = (id: BuilderStep): ProgressStepStatus => {
+        if (id === step) return "current";
+        if (!visited.has(id)) return "upcoming";
+        return checklist.some((i) => i.status === "error" && stepOf[i.fixIn] === id && (id !== "schedule" || visited.has("schedule"))) ? "error" : "complete";
+    };
+    const nextStep = STEPS[STEPS.findIndex((s) => s.id === step) + 1];
 
     return (
         <SurveyLocaleProvider locale={survey.locale}>
@@ -251,184 +317,301 @@ export const SurveyBuilder = ({
                             <Button color="tertiary" size="md" iconLeading={FlipBackward} isDisabled={history.length === 0} onClick={undo}>
                                 Undo
                             </Button>
-                            <div role="group" aria-label="Language" className="flex overflow-hidden rounded-lg ring-1 ring-primary ring-inset">
-                                <button
-                                    type="button"
-                                    aria-pressed="true"
-                                    className="cursor-default bg-primary-solid px-3 py-2 text-sm font-semibold text-white"
+                            {second ? (
+                                <div role="group" aria-label="Language" className="flex overflow-hidden rounded-lg ring-1 ring-primary ring-inset">
+                                    <button
+                                        type="button"
+                                        aria-pressed={!translating}
+                                        aria-label={`${LANGUAGE_NAMES[survey.locale]} (base)`}
+                                        onClick={() => setView("build")}
+                                        className={cx(
+                                            "cursor-pointer px-3 py-2 text-sm font-semibold outline-focus-ring focus-visible:outline-2",
+                                            !translating ? "bg-primary-solid text-white" : "text-secondary hover:bg-primary_hover",
+                                        )}
+                                    >
+                                        {survey.locale.toUpperCase()}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        aria-pressed={translating}
+                                        onClick={() => setView("translate")}
+                                        aria-label={`${LANGUAGE_NAMES[second]}: ${fr.done} of ${fr.total} strings translated`}
+                                        className={cx(
+                                            "cursor-pointer px-3 py-2 text-sm font-semibold outline-focus-ring focus-visible:outline-2",
+                                            translating ? "bg-primary-solid text-white" : "text-secondary hover:bg-primary_hover",
+                                        )}
+                                    >
+                                        {second.toUpperCase()}{" "}
+                                        <span
+                                            className={cx(
+                                                "font-medium",
+                                                translating ? "text-white/80" : fr.done < fr.total ? "text-warning-primary" : "text-tertiary",
+                                            )}
+                                        >
+                                            {fr.done}/{fr.total}
+                                        </span>
+                                    </button>
+                                </div>
+                            ) : (
+                                <Button
+                                    color="tertiary"
+                                    size="md"
+                                    iconLeading={Plus}
+                                    aria-label={`Also offer this survey in ${LANGUAGE_NAMES[otherLocale(survey.locale)]}`}
+                                    onClick={() => {
+                                        commit(setSecondLocale(survey, true));
+                                        setView("translate");
+                                    }}
                                 >
-                                    EN
-                                </button>
-                                <button
-                                    type="button"
-                                    aria-pressed="false"
-                                    onClick={onOpenTranslations}
-                                    aria-label={`French: ${fr.done} of ${fr.total} strings translated`}
-                                    className="cursor-pointer px-3 py-2 text-sm font-semibold text-secondary outline-focus-ring hover:bg-primary_hover focus-visible:outline-2"
-                                >
-                                    FR{" "}
-                                    <span className={cx("font-medium", fr.done < fr.total ? "text-warning-primary" : "text-tertiary")}>
-                                        {fr.done}/{fr.total}
-                                    </span>
-                                </button>
-                            </div>
+                                    {LANGUAGE_NAMES[otherLocale(survey.locale)]}
+                                </Button>
+                            )}
                             <Button color="secondary" size="md" iconLeading={Eye} onClick={() => setPreviewOpen(true)}>
                                 Preview
                             </Button>
-                            <Button size="md" iconTrailing={ArrowRight} onClick={() => onStepChange?.("settings")}>
-                                Next: Settings
-                            </Button>
+                            {nextStep && (
+                                <Button size="md" iconTrailing={ArrowRight} onClick={() => goTo(nextStep.id)}>
+                                    Next: {nextStep.label}
+                                </Button>
+                            )}
                         </div>
                     </div>
 
                     <ProgressSteps
                         aria-label="Survey setup"
                         steps={STEPS.map((s) => ({ id: s.id, label: s.label, status: stepStatus(s.id) }))}
-                        onSelect={(id) => onStepChange?.(id as BuilderStep)}
+                        onSelect={(id) => goTo(id as BuilderStep)}
                         className="pb-3"
                     />
                 </header>
 
-                {/* Three panes */}
-                <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[18rem_minmax(0,1fr)_20rem] xl:grid-cols-[20rem_minmax(0,1fr)_22rem]">
-                    <aside aria-label="Outline" className="min-h-0 overflow-y-auto border-secondary bg-primary p-4 lg:border-r">
-                        {answerable > 10 && (
-                            <p className="mb-3 rounded-lg bg-secondary px-3 py-2 text-xs text-tertiary">
-                                {answerable} questions. Surveys over 10 questions usually get fewer completions.
-                            </p>
-                        )}
-                        <QuestionOutline
-                            survey={survey}
-                            selectedId={selectedId}
-                            onSelect={(id) => {
-                                setSelectedId(id);
-                                setJustAdded(null);
-                            }}
-                            onReorder={(ids) => commit({ ...survey, questions: ids.map((id) => survey.questions.find((q) => q.id === id)!) })}
-                            onInsert={(index, anchor) => {
-                                pickerAnchor.current = anchor;
-                                setPicker({ open: true, index });
-                            }}
-                        />
-                        {/* Anchor for the "/" shortcut: the Add question button at the bottom of the outline. */}
-                        <div ref={addButtonRef} aria-hidden="true" className="h-0" />
-                    </aside>
-
-                    <section
-                        aria-label="Preview canvas"
-                        className="flex min-h-0 flex-col items-center gap-4 overflow-y-auto bg-secondary_subtle px-4 py-5 lg:px-8"
-                    >
-                        <div role="group" aria-label="Canvas size" className="flex rounded-lg bg-primary p-1 ring-1 ring-secondary ring-inset">
-                            {(["desktop", "mobile"] as const).map((f) => (
-                                <button
-                                    key={f}
-                                    type="button"
-                                    aria-pressed={frame === f}
-                                    onClick={() => setFrame(f)}
-                                    className={cx(
-                                        "flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold outline-focus-ring focus-visible:outline-2",
-                                        frame === f ? "bg-secondary text-primary shadow-xs" : "text-quaternary hover:text-tertiary",
-                                    )}
-                                >
-                                    {f === "desktop" ? <Laptop01 className="size-4" aria-hidden="true" /> : <Phone01 className="size-4" aria-hidden="true" />}
-                                    {f === "desktop" ? "Desktop" : "Mobile"}
-                                </button>
-                            ))}
-                        </div>
-
-                        <div
-                            className={cx(
-                                "relative w-full overflow-hidden rounded-2xl bg-primary shadow-sm ring-1 ring-secondary",
-                                frame === "desktop" ? "max-w-3xl px-14 pt-14 pb-12" : "max-w-[390px] px-6 pt-10 pb-8",
-                            )}
-                        >
-                            {selectedQuestion && (
-                                <>
-                                    <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-quaternary">
-                                        <div
-                                            className="h-full bg-brand-solid"
-                                            style={{ width: `${(selectedIndex / Math.max(1, survey.questions.length)) * 100}%` }}
-                                        />
-                                    </div>
-                                    <SurveyQuestion
-                                        key={selectedQuestion.id}
-                                        question={selectedQuestion}
-                                        number={survey.questions.slice(0, selectedIndex + 1).filter((q) => q.type !== "statement").length}
-                                        value={undefined}
-                                        onChange={() => {}}
-                                        editor={{ onChange: updateQuestion, autoFocus: justAdded === selectedQuestion.id }}
-                                    />
-                                </>
-                            )}
-                            {!selectedQuestion && <ScreenPreview survey={survey} which={selectedId === "intro" ? "intro" : "thankYou"} />}
-                        </div>
-                        {selectedQuestion && (
-                            <p className="text-center text-sm text-tertiary">
-                                Click any text in the preview to edit it in place. Dashed underlines mark editable text.
-                            </p>
-                        )}
-                    </section>
-
-                    <aside aria-label="Question settings" className="flex min-h-0 flex-col border-secondary bg-primary lg:border-l">
-                        {selectedQuestion ? (
-                            <>
-                                <div role="tablist" aria-label="Question panel" className="flex gap-5 border-b border-secondary px-5 pt-4">
-                                    {(["settings", "logic"] as const).map((t) => (
-                                        <button
-                                            key={t}
-                                            type="button"
-                                            role="tab"
-                                            aria-selected={panelTab === t}
-                                            onClick={() => setPanelTab(t)}
-                                            className={cx(
-                                                "-mb-px flex cursor-pointer items-center gap-2 border-b-2 pb-2.5 text-sm font-semibold outline-focus-ring focus-visible:outline-2",
-                                                panelTab === t ? "border-brand text-brand-secondary" : "border-transparent text-quaternary hover:text-tertiary",
-                                            )}
-                                        >
-                                            {t === "settings" ? "Settings" : "Logic"}
-                                            {t === "logic" && !!selectedQuestion.logic?.length && (
-                                                <Badge size="sm" color={panelTab === t ? "brand" : "gray"}>
-                                                    {selectedQuestion.logic.length}
-                                                </Badge>
-                                            )}
-                                        </button>
-                                    ))}
-                                </div>
-                                <div role="tabpanel" className="min-h-0 flex-1 overflow-y-auto p-5">
-                                    {panelTab === "settings" ? (
-                                        <QuestionSettings
-                                            question={selectedQuestion}
-                                            onChange={updateQuestion}
-                                            onTypeChange={(type) => requestType(selectedQuestion, type)}
-                                        />
-                                    ) : (
-                                        <LogicPanel survey={survey} question={selectedQuestion} onChange={updateQuestion} />
-                                    )}
-                                </div>
-                                <div className="grid grid-cols-2 gap-3 border-t border-secondary p-4">
-                                    <Button color="secondary" size="md" iconLeading={Copy06} onClick={() => duplicate(selectedQuestion)}>
-                                        Duplicate
-                                    </Button>
-                                    <Button color="secondary-destructive" size="md" iconLeading={Trash01} onClick={() => remove(selectedQuestion)}>
-                                        Delete
-                                    </Button>
-                                </div>
-                            </>
-                        ) : (
-                            <div className="flex flex-col gap-3 p-5">
-                                <p className="text-sm font-semibold text-primary">{selectedId === "intro" ? "Intro screen" : "Thank-you screen"}</p>
-                                <p className="text-sm text-tertiary">
-                                    {selectedId === "intro"
-                                        ? "The intro's title, text and image are set in step 2, Settings. Time and question count are calculated for you."
-                                        : "The thank-you message and where its button goes are set in step 2, Settings. The reward comes from step 3."}
+                {/* Step body: the three-pane Questions step, the French view, or a form step */}
+                {step === "questions" && !translating ? (
+                    <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[18rem_minmax(0,1fr)_20rem] xl:grid-cols-[20rem_minmax(0,1fr)_22rem]">
+                        <aside aria-label="Outline" className="min-h-0 overflow-y-auto border-secondary bg-primary p-4 lg:border-r">
+                            {answerable > 10 && (
+                                <p className="mb-3 rounded-lg bg-secondary px-3 py-2 text-xs text-tertiary">
+                                    {answerable} questions. Surveys over 10 questions usually get fewer completions.
                                 </p>
-                                <Button color="secondary" size="sm" onClick={() => onStepChange?.("settings")} className="self-start">
-                                    Go to Settings
-                                </Button>
+                            )}
+                            <QuestionOutline
+                                survey={survey}
+                                selectedId={selectedId}
+                                onSelect={(id) => {
+                                    setSelectedId(id);
+                                    setJustAdded(null);
+                                }}
+                                onReorder={(ids) => commit({ ...survey, questions: ids.map((id) => survey.questions.find((q) => q.id === id)!) })}
+                                onInsert={(index, anchor) => {
+                                    pickerAnchor.current = anchor;
+                                    setPicker({ open: true, index });
+                                }}
+                            />
+                            {/* Anchor for the "/" shortcut: the Add question button at the bottom of the outline. */}
+                            <div ref={addButtonRef} aria-hidden="true" className="h-0" />
+                        </aside>
+
+                        <section
+                            aria-label="Preview canvas"
+                            className="flex min-h-0 flex-col items-center gap-4 overflow-y-auto bg-secondary_subtle px-4 py-5 lg:px-8"
+                        >
+                            <div role="group" aria-label="Canvas size" className="flex rounded-lg bg-primary p-1 ring-1 ring-secondary ring-inset">
+                                {(["desktop", "mobile"] as const).map((f) => (
+                                    <button
+                                        key={f}
+                                        type="button"
+                                        aria-pressed={frame === f}
+                                        onClick={() => setFrame(f)}
+                                        className={cx(
+                                            "flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold outline-focus-ring focus-visible:outline-2",
+                                            frame === f ? "bg-secondary text-primary shadow-xs" : "text-quaternary hover:text-tertiary",
+                                        )}
+                                    >
+                                        {f === "desktop" ? (
+                                            <Laptop01 className="size-4" aria-hidden="true" />
+                                        ) : (
+                                            <Phone01 className="size-4" aria-hidden="true" />
+                                        )}
+                                        {f === "desktop" ? "Desktop" : "Mobile"}
+                                    </button>
+                                ))}
                             </div>
+
+                            <div
+                                className={cx(
+                                    "relative w-full overflow-hidden rounded-2xl bg-primary shadow-sm ring-1 ring-secondary",
+                                    frame === "desktop" ? "max-w-3xl px-14 pt-14 pb-12" : "max-w-[390px] px-6 pt-10 pb-8",
+                                )}
+                            >
+                                {selectedQuestion && (
+                                    <>
+                                        <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-quaternary">
+                                            <div
+                                                className="h-full bg-brand-solid"
+                                                style={{ width: `${(selectedIndex / Math.max(1, survey.questions.length)) * 100}%` }}
+                                            />
+                                        </div>
+                                        <SurveyQuestion
+                                            key={selectedQuestion.id}
+                                            question={selectedQuestion}
+                                            number={survey.questions.slice(0, selectedIndex + 1).filter((q) => q.type !== "statement").length}
+                                            value={undefined}
+                                            onChange={() => {}}
+                                            editor={{ onChange: updateQuestion, autoFocus: justAdded === selectedQuestion.id }}
+                                        />
+                                    </>
+                                )}
+                                {!selectedQuestion && <ScreenPreview survey={survey} which={selectedId === "intro" ? "intro" : "thankYou"} />}
+                            </div>
+                            {selectedQuestion && (
+                                <p className="text-center text-sm text-tertiary">
+                                    Click any text in the preview to edit it in place. Dashed underlines mark editable text.
+                                </p>
+                            )}
+                        </section>
+
+                        <aside aria-label="Question settings" className="flex min-h-0 flex-col border-secondary bg-primary lg:border-l">
+                            {selectedQuestion ? (
+                                <>
+                                    <div role="tablist" aria-label="Question panel" className="flex gap-5 border-b border-secondary px-5 pt-4">
+                                        {(["settings", "logic"] as const).map((t) => (
+                                            <button
+                                                key={t}
+                                                type="button"
+                                                role="tab"
+                                                aria-selected={panelTab === t}
+                                                onClick={() => setPanelTab(t)}
+                                                className={cx(
+                                                    "-mb-px flex cursor-pointer items-center gap-2 border-b-2 pb-2.5 text-sm font-semibold outline-focus-ring focus-visible:outline-2",
+                                                    panelTab === t
+                                                        ? "border-brand text-brand-secondary"
+                                                        : "border-transparent text-quaternary hover:text-tertiary",
+                                                )}
+                                            >
+                                                {t === "settings" ? "Settings" : "Logic"}
+                                                {t === "logic" && !!selectedQuestion.logic?.length && (
+                                                    <Badge size="sm" color={panelTab === t ? "brand" : "gray"}>
+                                                        {selectedQuestion.logic.length}
+                                                    </Badge>
+                                                )}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div role="tabpanel" className="min-h-0 flex-1 overflow-y-auto p-5">
+                                        {panelTab === "settings" ? (
+                                            <QuestionSettings
+                                                question={selectedQuestion}
+                                                onChange={updateQuestion}
+                                                onTypeChange={(type) => requestType(selectedQuestion, type)}
+                                            />
+                                        ) : (
+                                            <LogicPanel survey={survey} question={selectedQuestion} onChange={updateQuestion} />
+                                        )}
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3 border-t border-secondary p-4">
+                                        <Button color="secondary" size="md" iconLeading={Copy06} onClick={() => duplicate(selectedQuestion)}>
+                                            Duplicate
+                                        </Button>
+                                        <Button color="secondary-destructive" size="md" iconLeading={Trash01} onClick={() => remove(selectedQuestion)}>
+                                            Delete
+                                        </Button>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="flex flex-col gap-3 p-5">
+                                    <p className="text-sm font-semibold text-primary">{selectedId === "intro" ? "Intro screen" : "Thank-you screen"}</p>
+                                    <p className="text-sm text-tertiary">
+                                        {selectedId === "intro"
+                                            ? "The intro's title, text and image are set in step 2, Settings. Time and question count are calculated for you."
+                                            : "The thank-you message and where its button goes are set in step 2, Settings. The reward comes from step 3."}
+                                    </p>
+                                    <Button color="secondary" size="sm" onClick={() => goTo("settings")} className="self-start">
+                                        Go to Settings
+                                    </Button>
+                                </div>
+                            )}
+                        </aside>
+                    </div>
+                ) : (
+                    <div className="min-h-0 flex-1 overflow-y-auto bg-secondary_subtle">
+                        {translating && second ? (
+                            <TranslationView
+                                locale={second}
+                                survey={survey}
+                                translations={translations}
+                                aiDrafts={aiDrafts}
+                                onChange={(key, text) => {
+                                    commit(survey, { ...translations, [key]: text }, selectedId, `fr:${key}`);
+                                    setAiDrafts((d) => {
+                                        const n = new Set(d);
+                                        n.delete(key);
+                                        return n;
+                                    });
+                                }}
+                                onApprove={(key) =>
+                                    setAiDrafts((d) => {
+                                        const n = new Set(d);
+                                        n.delete(key);
+                                        return n;
+                                    })
+                                }
+                                onDraftMissing={async () => {
+                                    const missing = extractStrings(survey).filter((s) => !translations[s.key]?.trim());
+                                    if (!missing.length || !onDraftTranslations) return;
+                                    const drafted = await onDraftTranslations(missing);
+                                    commit(survey, { ...translations, ...drafted });
+                                    setAiDrafts((d) => new Set([...d, ...Object.keys(drafted)]));
+                                    setToast({
+                                        id: Date.now(),
+                                        message: `${Object.keys(drafted).length} ${LANGUAGE_NAMES[second]} strings drafted. Review them before publishing.`,
+                                        undo: true,
+                                    });
+                                }}
+                            />
+                        ) : step === "settings" ? (
+                            <SettingsStep
+                                survey={survey}
+                                onChange={(s) => commit(s, translations, selectedId, "settings")}
+                                onBack={() => goTo("questions")}
+                                onNext={() => goTo("reward")}
+                            />
+                        ) : step === "reward" ? (
+                            <RewardStep
+                                survey={survey}
+                                onChange={(s) => commit(s, translations, selectedId, "reward")}
+                                programName={programName}
+                                enabledRewardTypes={enabledRewardTypes}
+                                eligibleParticipants={eligibleParticipants}
+                                onBack={() => goTo("settings")}
+                                onNext={() => goTo("schedule")}
+                            />
+                        ) : (
+                            <ScheduleStep
+                                survey={survey}
+                                translations={translations}
+                                onChange={(s) => commit(s, translations, selectedId, "schedule")}
+                                programName={programName}
+                                eligibleParticipants={eligibleParticipants}
+                                unreviewedDrafts={[...aiDrafts].filter((k) => translations[k]?.trim()).length}
+                                now={now}
+                                onFix={(target) => (target === "french" ? goTo("questions", "translate") : goTo(target))}
+                                onBack={() => goTo("reward")}
+                                onPublish={(status) => {
+                                    const published = { ...survey, status };
+                                    commit(published);
+                                    // Publishing isn't something Undo should reverse quietly.
+                                    setHistory([]);
+                                    onPublish?.(published, translations);
+                                    setToast({
+                                        id: Date.now(),
+                                        message: status === "live" ? `${survey.title} is live.` : `${survey.title} is scheduled.`,
+                                        undo: false,
+                                    });
+                                }}
+                            />
                         )}
-                    </aside>
-                </div>
+                    </div>
+                )}
             </div>
 
             <AddQuestionPicker

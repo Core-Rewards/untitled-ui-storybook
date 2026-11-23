@@ -9,6 +9,7 @@ import { RadioButtonBase } from "@/components/base/radio-buttons/radio-buttons";
 import { FeaturedIcon } from "@/components/foundations/featured-icon/featured-icon";
 import { cx } from "@/utils/cx";
 import type { SurveyLocale } from "../survey-types";
+import { SettingToggle } from "../builder/settings-fields";
 import { formatDateRange, statusBadge } from "./admin-format";
 import type { NewSurveyRequest, SurveyListItem, SurveyTemplate } from "./admin-types";
 
@@ -45,6 +46,8 @@ export const NewSurveyPage = ({ templates, surveys, onCreate, onCancel, defaultS
     const [category, setCategory] = useState("All");
     const [name, setName] = useState<string>();
     const [baseLocale, setBaseLocale] = useState<SurveyLocale>("en");
+    /** Undefined until the admin chooses; until then it follows the starting point. */
+    const [bilingualChoice, setBilingualChoice] = useState<boolean>();
 
     const categories = useMemo(() => ["All", ...Array.from(new Set(templates.map((t) => t.category)))], [templates]);
     const shownTemplates = ordered.filter(
@@ -60,6 +63,10 @@ export const NewSurveyPage = ({ templates, surveys, onCreate, onCancel, defaultS
     // Suggest a name from the starting point until the admin types their own.
     const suggestedName = template?.title ?? (original ? `Copy of ${original.title}` : "");
     const shownName = name ?? suggestedName;
+    // Follows the starting point (a template with French, or a bilingual survey) until the admin chooses.
+    const startsBilingual = template ? template.hasFrench : original ? original.locales.length > 1 : false;
+    const bilingual = bilingualChoice ?? startsBilingual;
+    const otherName = baseLocale === "en" ? "French" : "English";
     const canCreate = shownName.trim().length > 0 && (kind === "blank" || !!template || !!original);
 
     const create = () => {
@@ -70,6 +77,7 @@ export const NewSurveyPage = ({ templates, surveys, onCreate, onCancel, defaultS
             duplicateOfId: original?.id,
             name: shownName.trim(),
             baseLocale,
+            bilingual,
         });
     };
 
@@ -279,9 +287,20 @@ export const NewSurveyPage = ({ templates, surveys, onCreate, onCancel, defaultS
                             ))}
                         </div>
                         <span id="base-language-hint" className="text-sm text-tertiary">
-                            You write the survey in this language. Add the other in the builder.
+                            You write the survey in this language.
                         </span>
                     </RadioGroup>
+
+                    <SettingToggle
+                        label={`Also offer it in ${otherName}`}
+                        hint={
+                            bilingual
+                                ? `You'll translate it in the builder. It can't be published until every string has ${otherName}.`
+                                : "You can add it later in Settings."
+                        }
+                        isSelected={bilingual}
+                        onChange={setBilingualChoice}
+                    />
 
                     <div className="flex flex-col gap-2">
                         <Button type="submit" size="lg" isDisabled={!canCreate}>

@@ -82,6 +82,8 @@ export const getSatisfactionSurvey = (locale: SurveyLocale = "en", overrides: Pa
             secondaryAction: { label: t.backToDashboard, destination: "dashboard" },
         },
         card: { enabled: true, headline: t.title, body: t.cardBody },
+        enabledLocales: ["en", "fr"],
+        emails: { inviteAtOpen: true, reminder: true, reminderDaysBeforeClose: 3 },
         questions: [
             {
                 id: "q1",
