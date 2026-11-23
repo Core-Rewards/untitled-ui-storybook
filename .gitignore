@@ -25,3 +25,6 @@ dist-ssr
 
 # Storybook
 storybook-static
+
+# Survey feature handoff bundle (brief and wireframes), kept local for reference
+survey-feature-handoff/

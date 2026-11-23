@@ -1,0 +1,44 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Survey/Overview" />
+
+# Surveys
+
+Admins build, translate and publish short surveys; participants answer them on phone or desktop and get a reward. BASF Advisor Advantage pilots v1.
+
+This group holds the **participant side** and the **shared question components**. The admin builder, French editor and results come in a later pass. The plan and every deviation from the wireframes are in `docs/survey/shell-mapping.md`.
+
+## What's here
+
+| Story group | What it covers |
+| --- | --- |
+| **Questions** | All 13 question types. One set renders the participant view and, later, the builder canvas. |
+| **Participant / Dashboard card** | New, in progress (Resume · 3 of 5), completed, not open, closed. Built on `Base/ActionCard`. |
+| **Participant / Intro** | Reward first, time and question count, anonymity line, Start. |
+| **Participant / Question screen** | One question per screen in the focused takeover, phone and desktop. |
+| **Participant / Thank-you** | Reward credited (points, sweepstakes entries, arcade spins). No new-balance line. |
+| **Participant / Edge states** | Not open yet, closed, already completed. |
+| **Participant / Flow** | The whole journey on a mock platform: jump logic, autosave, resume, submit once. |
+
+## How it behaves
+
+- **Phone-first, one question per screen.** Single choice, yes/no, rating, opinion scale and NPS auto-advance after a tap; the rest use Next, pinned to the bottom on phones.
+- **Layout follows the space it's given.** Components use container queries, so a phone frame inside a desktop page (the builder's Mobile preview) gets the phone layout.
+- **Keyboard on desktop.** A–Z to pick, number keys for scales (1 then 0 for 10), Enter to continue, up/down arrows to move between questions. Shortcuts never fire while typing in a field.
+- **Accessible.** Selection is never shown by colour alone, targets are at least 48px on phones, focus moves to each new question's title, and messages are inline.
+- **Autosave and resume.** `SurveyPlayer` calls `onResponseChange` after every answer and resumes in-progress responses at the next unanswered question on the participant's logic path.
+- **Paid once.** `SurveyPlayer` blocks double submits; the platform must also make the payout idempotent on survey + participant.
+- **English and French.** Pass a resolved survey per language. Question and option IDs are shared, so answers line up in exports.
+
+## Theme
+
+Use the **Brand** menu in the toolbar to switch between neutral Untitled UI tokens and BASF Advisor Advantage (ported from AdminUI).
+
+## For the platform team
+
+Components take typed data (`survey-types.ts`) and callbacks. Nothing here talks to a server. Wire these to the API:
+
+- `onResponseChange(response)`: autosave. For anonymous surveys, keep the resume link in a short-lived server-side mapping that never reaches admin data.
+- `onSubmit(response) → { reward }`: mark complete and pay the reward once.
+- `onExit`, `onNavigate`: leave the takeover.
+- `getSurveyAvailability(survey, response, now)`: open, not open, closed (with a 24-hour grace period to confirm) or completed.
