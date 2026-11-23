@@ -1,4 +1,4 @@
-import type { SurveyLocale, SurveyReward } from "./survey-types";
+import type { QuizRewardRule, SurveyLocale, SurveyReward } from "./survey-types";
 
 /** Fixed UI strings for the participant flow, in English and French. Survey content comes from the survey itself. */
 export interface SurveyCopy {
@@ -74,6 +74,43 @@ export interface SurveyCopy {
     submitting: string;
     submitError: string;
     programHome: (name: string) => string;
+    // Quizzes
+    newQuiz: string;
+    quizInProgress: string;
+    quizCompleted: string;
+    /** "Pass to earn 250 points" / "Earn up to 500 points". */
+    earnQuiz: (reward: SurveyReward, rule: QuizRewardRule) => string;
+    /** "Scored 9 of 10 · Passed". */
+    scoreLine: (correct: number, total: number, passed: boolean) => string;
+    earned: (reward: SurveyReward) => string;
+    noRewardEarned: string;
+    // Surveys & quizzes page
+    hubTitle: string;
+    hubIntro: string;
+    tabAvailable: string;
+    tabUpcoming: string;
+    tabCompleted: string;
+    filterAll: string;
+    filterSurveys: string;
+    filterQuizzes: string;
+    kindSurvey: string;
+    kindQuiz: string;
+    completedOn: (date: string) => string;
+    emptyAvailable: string;
+    emptyUpcoming: string;
+    emptyCompleted: string;
+    emptyFilter: (kind: string) => string;
+    moreToDo: string;
+    viewAll: (n: number) => string;
+    // Compact dashboard summary
+    /** "1 survey and 2 quizzes available". */
+    availableSummary: (surveys: number, quizzes: number) => string;
+    inProgressCount: (n: number) => string;
+    closesSoonest: (date: string) => string;
+    earnUpTo: (amount: number) => string;
+    nextOpens: (date: string) => string;
+    nothingOpenYet: string;
+    viewAllShort: string;
 }
 
 const nf = (locale: SurveyLocale) => new Intl.NumberFormat(locale === "fr" ? "fr-CA" : "en-US");
@@ -168,6 +205,45 @@ const en: SurveyCopy = {
     submitting: "Submitting…",
     submitError: "We couldn't submit your answers. Your answers are saved, so please try again.",
     programHome: (name) => `${name} home`,
+    newQuiz: "New quiz",
+    quizInProgress: "Quiz in progress",
+    quizCompleted: "Quiz completed",
+    earnQuiz: (r, rule) =>
+        rule === "pass"
+            ? `Pass to earn ${nf("en").format(r.amount)} ${rewardNoun(r, "en")}`
+            : rule === "tiered"
+              ? `Earn up to ${nf("en").format(r.amount)} ${rewardNoun(r, "en")}`
+              : en.earn(r),
+    scoreLine: (c, t, passed) => `Scored ${c} of ${t} · ${passed ? "Passed" : "Not passed"}`,
+    earned: (r) => `+${nf("en").format(r.amount)} ${rewardNoun(r, "en")}`,
+    noRewardEarned: "No reward earned",
+    hubTitle: "Surveys & quizzes",
+    hubIntro: "Share your feedback and test what you know. Rewards are added the moment you finish.",
+    tabAvailable: "Available",
+    tabUpcoming: "Upcoming",
+    tabCompleted: "Completed",
+    filterAll: "All",
+    filterSurveys: "Surveys",
+    filterQuizzes: "Quizzes",
+    kindSurvey: "Survey",
+    kindQuiz: "Quiz",
+    completedOn: (d) => `Completed ${d}`,
+    emptyAvailable: "Nothing to take right now. New surveys and quizzes show up here.",
+    emptyUpcoming: "Nothing scheduled yet.",
+    emptyCompleted: "You haven't finished any yet.",
+    emptyFilter: (k) => `No ${k.toLowerCase()} here.`,
+    moreToDo: "More to do",
+    viewAll: (n) => `View all ${n}`,
+    availableSummary: (s, q) => {
+        const parts = [s && `${s} ${s === 1 ? "survey" : "surveys"}`, q && `${q} ${q === 1 ? "quiz" : "quizzes"}`].filter(Boolean);
+        return `${parts.join(" and ")} available`;
+    },
+    inProgressCount: (n) => `${n} in progress`,
+    closesSoonest: (d) => `Next closes ${d}`,
+    earnUpTo: (n) => `Earn up to ${nf("en").format(n)} points`,
+    nextOpens: (d) => `Next one opens ${d}`,
+    nothingOpenYet: "Nothing to take right now",
+    viewAllShort: "View all",
 };
 
 const fr: SurveyCopy = {
@@ -248,6 +324,45 @@ const fr: SurveyCopy = {
     submitting: "Envoi…",
     submitError: "Nous n'avons pas pu envoyer vos réponses. Elles sont enregistrées, veuillez réessayer.",
     programHome: (name) => `Accueil ${name}`,
+    newQuiz: "Nouveau quiz",
+    quizInProgress: "Quiz en cours",
+    quizCompleted: "Quiz terminé",
+    earnQuiz: (r, rule) =>
+        rule === "pass"
+            ? `Réussissez pour gagner ${nf("fr").format(r.amount)} ${rewardNoun(r, "fr")}`
+            : rule === "tiered"
+              ? `Gagnez jusqu'à ${nf("fr").format(r.amount)} ${rewardNoun(r, "fr")}`
+              : fr.earn(r),
+    scoreLine: (c, t, passed) => `Résultat ${c} sur ${t} · ${passed ? "Réussi" : "Non réussi"}`,
+    earned: (r) => `+${nf("fr").format(r.amount)} ${rewardNoun(r, "fr")}`,
+    noRewardEarned: "Aucune récompense",
+    hubTitle: "Sondages et quiz",
+    hubIntro: "Donnez votre avis et testez vos connaissances. Les récompenses sont ajoutées dès que vous terminez.",
+    tabAvailable: "Disponibles",
+    tabUpcoming: "À venir",
+    tabCompleted: "Terminés",
+    filterAll: "Tous",
+    filterSurveys: "Sondages",
+    filterQuizzes: "Quiz",
+    kindSurvey: "Sondage",
+    kindQuiz: "Quiz",
+    completedOn: (d) => `Terminé le ${d}`,
+    emptyAvailable: "Rien à faire pour le moment. Les nouveaux sondages et quiz apparaîtront ici.",
+    emptyUpcoming: "Rien de prévu pour l'instant.",
+    emptyCompleted: "Vous n'en avez pas encore terminé.",
+    emptyFilter: (k) => `Aucun ${k.toLowerCase()} ici.`,
+    moreToDo: "À faire aussi",
+    viewAll: (n) => `Voir les ${n}`,
+    availableSummary: (s, q) => {
+        const parts = [s && `${s} ${s === 1 ? "sondage" : "sondages"}`, q && `${q} quiz`].filter(Boolean);
+        return `${parts.join(" et ")} ${s + q === 1 ? "disponible" : "disponibles"}`;
+    },
+    inProgressCount: (n) => `${n} en cours`,
+    closesSoonest: (d) => `Prochaine fin le ${d}`,
+    earnUpTo: (n) => `Gagnez jusqu'à ${nf("fr").format(n)} points`,
+    nextOpens: (d) => `Le prochain ouvre le ${d}`,
+    nothingOpenYet: "Rien à faire pour le moment",
+    viewAllShort: "Voir tout",
 };
 
 export const SURVEY_COPY: Record<SurveyLocale, SurveyCopy> = { en, fr };

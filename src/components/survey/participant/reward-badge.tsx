@@ -3,8 +3,8 @@ import { useSurveyCopy } from "../survey-context";
 import type { SurveyReward } from "../survey-types";
 import { rewardIcons } from "./reward-icons";
 
-/** "Earn 500 points" pill. High contrast so the reward reads first. */
-export const RewardBadge = ({ reward, className }: { reward: SurveyReward; className?: string }) => {
+/** "Earn 500 points" pill. High contrast so the reward reads first. Quizzes pass their own label, e.g. "Pass to earn 250 points". */
+export const RewardBadge = ({ reward, label, className }: { reward: SurveyReward; label?: string; className?: string }) => {
     const { copy } = useSurveyCopy();
     const Icon = rewardIcons[reward.type];
     return (
@@ -15,7 +15,7 @@ export const RewardBadge = ({ reward, className }: { reward: SurveyReward; class
             )}
         >
             <Icon className="size-4" aria-hidden="true" />
-            {copy.earn(reward)}
+            {label ?? copy.earn(reward)}
         </span>
     );
 };

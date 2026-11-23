@@ -170,3 +170,14 @@ Not every survey is translated. A survey is written in one base language and can
 - **Results and export:** the language filter and the shared-columns note only appear for bilingual surveys.
 - **French-base surveys:** labels follow the base language, so an English translation works the same way.
 
+### Participant: Surveys & quizzes page and dashboard (branch `survey-participant-hub`)
+
+Decisions (Mike, Nov 23): quizzes are a **kind** of survey chosen at creation, quiz rewards are set per quiz (on completion, on passing, or tiered by score), **no retakes**, and the weekly `Base/Quiz` merges into this. Quiz mode in the builder comes next; this step only displays quizzes.
+
+- **Model:** `Survey.kind` (`survey` | `quiz`) and `Survey.quiz` (pass mark, reward rule, tiers); responses can carry `score` and `rewardEarned`.
+- **Page:** a "Surveys & quizzes" nav item with a count opens Available (started first, then closing soonest, then bigger reward), Upcoming and Completed (reward earned, quiz score). Items that closed before the participant took part aren't shown. All / Surveys / Quizzes filters appear when there are quizzes.
+- **Dashboard:** one featured card, up to two compact rows ("More to do"), and View all. With nothing open, a just-finished item (3 days) or the next upcoming one takes the card.
+- **Compact dashboard** (`variant="compact"`): one row instead of cards, e.g. "1 survey and 2 quizzes available", with how many are started, when the next closes, the points on offer, and View all. With nothing open it says when the next one opens; with nothing at all it renders nothing.
+- **Reward wording:** "Earn 300 points" (completion), "Pass to earn 250 points" (pass), "Earn up to 500 points" (tiered). A quiz that wasn't passed shows neutral, not green.
+- **New shared piece:** `ActionRow`, the compact list version of `ActionCard`. Card and row share one description helper (`describeActivity`) so they always agree.
+
