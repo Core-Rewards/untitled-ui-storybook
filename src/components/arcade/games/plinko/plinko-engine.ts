@@ -99,8 +99,15 @@ export const stepPoint = (g: PlinkoGeometry, st: Step) => {
     return { x: g.cx + st.off * g.sx, y: g.binY + g.binH * 0.5 };
 };
 
-/** Seconds per segment: slower first fall and last drop into the bin. */
-export const segmentDuration = (i: number, n: number, reduced: boolean) => (i === 0 ? 0.36 : i === n - 2 ? 0.34 : 0.19) * (reduced ? 0.4 : 1);
+/**
+ * Seconds per segment: the first fall, each peg-to-peg hop, and the last drop into the bin.
+ * Tuned so an 8-row drop takes ~3.5s; at ~2.2s players said the ball was over before they saw it.
+ */
+const FIRST_FALL_S = 0.5;
+const PEG_HOP_S = 0.32;
+const INTO_BIN_S = 0.48;
+export const segmentDuration = (i: number, n: number, reduced: boolean) =>
+    (i === 0 ? FIRST_FALL_S : i === n - 2 ? INTO_BIN_S : PEG_HOP_S) * (reduced ? 0.4 : 1);
 
 /** Ball position: gravity on the first fall, a hop arc between pegs. */
 export const ballPosition = (g: PlinkoGeometry, d: Drop) => {

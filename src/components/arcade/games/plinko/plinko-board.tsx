@@ -49,6 +49,16 @@ export interface PlinkoBoardProps {
 type Particle = { x: number; y: number; vx: number; vy: number; r: number; life: number; c: string };
 type Float = { x: number; y: number; text: string; c: string; life: number };
 
+/** How long a bin stays highlighted (glowing border, white label) after a ball lands in it. */
+const BIN_GLOW_MS = 4000;
+
+/** Blend two #rrggbb colors; `amount` 0 = a, 1 = b. */
+const mixHex = (a: string, b: string, amount: number) => {
+    const ch = (hex: string, i: number) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
+    const out = [0, 1, 2].map((i) => Math.round(ch(a, i) + (ch(b, i) - ch(a, i)) * amount));
+    return `rgb(${out.join(",")})`;
+};
+
 const prefersReducedMotion = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
 const roundRect = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
@@ -147,6 +157,9 @@ export const PlinkoBoard = forwardRef<PlinkoBoardHandle, PlinkoBoardProps>(({ bo
                 const col = NEON[tier.color];
                 const hit = binHits.current.get(k);
                 const t = hit ? Math.max(0, 1 - (now - hit) / 800) : 0;
+                // Landing highlight strength, shared by the border glow and the white label so they fade together.
+                const glow = hit ? Math.max(0, 1 - (now - hit) / BIN_GLOW_MS) : 0;
+                const fade = glow * glow * (3 - 2 * glow); // smooth ease-out at the tail
                 const b = binRect(G, k);
                 const y = b.y + Math.sin(t * Math.PI) * G.u * 0.12;
                 const rad = Math.min(8, G.u * 0.14);
@@ -165,6 +178,24 @@ export const PlinkoBoard = forwardRef<PlinkoBoardHandle, PlinkoBoardProps>(({ bo
                 ctx.stroke();
                 ctx.restore();
 
+                // Landing highlight: the border glows in the bin's color, pulsing gently as it fades out.
+                if (glow > 0) {
+                    const pulse = reducedMotion || prefersReducedMotion() ? 1 : 0.8 + 0.2 * Math.sin((now - hit!) / 140);
+                    ctx.save();
+                    roundRect(ctx, b.x, y, b.w, b.h, rad);
+                    ctx.shadowColor = col;
+                    ctx.globalAlpha = fade * pulse;
+                    ctx.shadowBlur = 14 + 26 * fade;
+                    ctx.lineWidth = 2 + 2.5 * fade;
+                    ctx.strokeStyle = col;
+                    ctx.stroke();
+                    ctx.shadowBlur = 6;
+                    ctx.lineWidth = 1.2;
+                    ctx.strokeStyle = "#ffffff"; // hot white core on the border
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
                 // Labels
                 const fs = Math.max(11, Math.min(26, G.u * 0.46));
                 ctx.textAlign = "center";
@@ -179,8 +210,8 @@ export const PlinkoBoard = forwardRef<PlinkoBoardHandle, PlinkoBoardProps>(({ bo
                 const measured = ctx.measureText(tier.label).width;
                 if (measured > maxW) ctx.font = `italic 900 ${(fs * maxW) / measured}px ${DISPLAY_FONT}`;
                 ctx.shadowColor = col;
-                ctx.shadowBlur = 10;
-                ctx.fillStyle = t > 0.3 ? "#ffffff" : col;
+                ctx.shadowBlur = 10 + 8 * fade;
+                ctx.fillStyle = fade > 0 ? mixHex(col, "#ffffff", fade) : col;
                 ctx.fillText(tier.label, b.x + b.w / 2, y + b.h * 0.64);
                 ctx.restore();
             }
@@ -238,8 +269,12 @@ export const PlinkoBoard = forwardRef<PlinkoBoardHandle, PlinkoBoardProps>(({ bo
             for (const f of floats.current) {
                 f.y -= 0.7;
                 f.life -= 0.012;
+                // Clamp: a negative globalAlpha is ignored by canvas (it keeps the previous value, 1),
+                // which made the label flash at full brightness on its last frame.
+                const alpha = Math.min(1, Math.max(0, f.life * 2));
+                if (alpha <= 0) continue;
                 ctx.save();
-                ctx.globalAlpha = Math.min(1, f.life * 2);
+                ctx.globalAlpha = alpha;
                 ctx.font = `italic 900 ${Math.max(18, G.u * 0.7)}px ${DISPLAY_FONT}`;
                 ctx.textAlign = "center";
                 ctx.shadowColor = f.c;
@@ -249,7 +284,7 @@ export const PlinkoBoard = forwardRef<PlinkoBoardHandle, PlinkoBoardProps>(({ bo
                 ctx.restore();
             }
         },
-        [tierFor],
+        [tierFor, reducedMotion],
     );
 
     /* ---------------- simulation ---------------- */
@@ -321,9 +356,10 @@ export const PlinkoBoard = forwardRef<PlinkoBoardHandle, PlinkoBoardProps>(({ bo
             last.current = now;
             step(dt, now);
             draw(now);
-            const busy = drops.current.length || particles.current.length || floats.current.length;
+            const glowing = [...binHits.current.values()].some((hit) => now - hit < BIN_GLOW_MS);
+            const busy = drops.current.length || particles.current.length || floats.current.length || glowing;
             if (busy) quietSince.current = now;
-            // Keep running ~1s after the last activity so hit glows fade out, then sleep.
+            // Keep running ~1s after the last activity (including bin glows) so everything fades out, then sleep.
             if (now - quietSince.current < 1000) raf.current = requestAnimationFrame(loop);
             else raf.current = null;
         },

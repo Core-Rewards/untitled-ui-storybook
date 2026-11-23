@@ -129,7 +129,8 @@ export const PlinkoScreen = ({
         sfx.unlock();
         const n = Math.min(count, Math.floor(available / game.tokenCost));
         outstanding.current += n;
-        for (let i = 0; i < n; i++) window.setTimeout(() => void dropOne(), i * 260);
+        // Gap between balls in a multi-drop: ~1.25 peg hops, so balls stay visibly apart.
+        for (let i = 0; i < n; i++) window.setTimeout(() => void dropOne(), i * 400);
     };
 
     const handleLand = useCallback((id: string) => {
