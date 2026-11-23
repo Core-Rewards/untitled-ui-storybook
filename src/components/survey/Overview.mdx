@@ -19,6 +19,9 @@ This group holds the **participant side** and the **shared question components**
 | **Participant / Thank-you** | Reward credited (points, sweepstakes entries, arcade spins). No new-balance line. |
 | **Participant / Edge states** | Not open yet, closed, already completed. |
 | **Participant / Flow** | The whole journey on a mock platform: jump logic, autosave, resume, submit once. |
+| **Participant / Quiz flow** | A quiz from the Surveys & quizzes page to its results and back, with each reveal setting and reward rule. |
+| **Participant / Quiz screens** | Quiz intro, a checked answer (right and wrong), results (passed, not passed, tiered, score only) and already taken. |
+| **Admin / Results** | Includes quiz results: score KPIs, score distribution, % answered correctly per question. |
 
 ## How it behaves
 
@@ -29,6 +32,10 @@ This group holds the **participant side** and the **shared question components**
 - **Autosave and resume.** `SurveyPlayer` calls `onResponseChange` after every answer and resumes in-progress responses at the next unanswered question on the participant's logic path.
 - **Paid once.** `SurveyPlayer` blocks double submits; the platform must also make the payout idempotent on survey + participant.
 - **English and French.** Pass a resolved survey per language. Question and option IDs are shared, so answers line up in exports.
+
+## Quizzes
+
+A quiz is a survey with right answers (`kind: "quiz"`), chosen when it's created. Multiple choice, dropdown and yes / no questions can be scored; other types are collected but not scored. Each quiz sets a pass mark, a reward rule (on completion, on passing, or tiered by score) and when answers are shown (after each question, at the end, or never). Quizzes are identified and can't be retaken. The rules live in `quiz-logic.ts`; the platform should grade on submit with the same rules. Details are in `docs/survey/shell-mapping.md`.
 
 ## Theme
 

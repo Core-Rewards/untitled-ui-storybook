@@ -1,7 +1,8 @@
-import { Check, DotsGrid, GitBranch01, InfoCircle, Plus } from "@untitledui/icons";
+import { AlertTriangle, Check, DotsGrid, GitBranch01, InfoCircle, Plus } from "@untitledui/icons";
 import { Button as AriaButton, GridList, GridListItem, useDragAndDrop } from "react-aria-components";
 import type { Key } from "react-aria-components";
 import { cx } from "@/utils/cx";
+import { isQuiz, quizSetupProblems, scoredQuestions } from "../quiz-logic";
 import { estimateMinutes } from "../survey-logic";
 import type { Survey } from "../survey-types";
 import { questionSummary } from "./builder-model";
@@ -34,6 +35,10 @@ const pinnedRow = (isSelected: boolean) =>
 export const QuestionOutline = ({ survey, selectedId, onSelect, onReorder, onInsert }: QuestionOutlineProps) => {
     const ids = survey.questions.map((q) => q.id);
     const answerable = survey.questions.filter((q) => q.type !== "statement").length;
+    const quiz = isQuiz(survey);
+    const scored = quiz ? scoredQuestions(survey).length : 0;
+    // Scored questions still missing their right answer get a warning in the row.
+    const missingAnswer = new Set(quiz ? quizSetupProblems(survey).unanswered.map((q) => q.id) : []);
 
     const { dragAndDropHooks } = useDragAndDrop({
         getItems: (keys) => [...keys].map((k) => ({ "text/plain": String(k) })),
@@ -50,7 +55,8 @@ export const QuestionOutline = ({ survey, selectedId, onSelect, onReorder, onIns
     return (
         <div className="flex flex-col gap-2">
             <p className="px-3 pb-1 text-xs font-semibold text-tertiary">
-                {answerable} {answerable === 1 ? "question" : "questions"} · About {estimateMinutes(survey.questions)} min
+                {answerable} {answerable === 1 ? "question" : "questions"}
+                {quiz && ` · ${scored} scored`} · About {estimateMinutes(survey.questions)} min
             </p>
 
             <button type="button" onClick={() => onSelect("intro")} aria-pressed={selectedId === "intro"} className={pinnedRow(selectedId === "intro")}>
@@ -81,7 +87,7 @@ export const QuestionOutline = ({ survey, selectedId, onSelect, onReorder, onIns
                     return (
                         <GridListItem
                             id={q.id}
-                            textValue={`Question ${i + 1}: ${q.title || "Untitled question"}`}
+                            textValue={`Question ${i + 1}: ${q.title || "Untitled question"}${missingAnswer.has(q.id) ? ", no correct answer yet" : ""}`}
                             className={({ isSelected, isFocusVisible, isDropTarget, isDragging }) =>
                                 cx(
                                     "group/q relative flex cursor-pointer gap-3 rounded-xl px-3 py-2.5 outline-hidden transition duration-100 ease-linear",
@@ -109,7 +115,7 @@ export const QuestionOutline = ({ survey, selectedId, onSelect, onReorder, onIns
                                             {q.title || "Untitled question"}
                                         </span>
                                         <span className="flex items-center gap-1 text-xs text-tertiary">
-                                            {questionSummary(q)}
+                                            {questionSummary(q, survey.kind)}
                                             {q.logic?.length ? (
                                                 <>
                                                     {" · "}
@@ -119,6 +125,12 @@ export const QuestionOutline = ({ survey, selectedId, onSelect, onReorder, onIns
                                             ) : null}
                                         </span>
                                         {condition && <span className="text-xs text-brand-secondary">{condition}</span>}
+                                        {missingAnswer.has(q.id) && (
+                                            <span className="flex items-center gap-1 text-xs font-medium text-warning-primary">
+                                                <AlertTriangle className="size-3.5" aria-hidden="true" />
+                                                No correct answer yet
+                                            </span>
+                                        )}
                                     </span>
                                     <AriaButton
                                         slot="drag"

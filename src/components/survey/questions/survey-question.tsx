@@ -1,11 +1,13 @@
 import { useEffect, useId, useRef } from "react";
 import { ArrowRight } from "@untitledui/icons";
 import { cx } from "@/utils/cx";
+import { isScored } from "../quiz-logic";
 import { useSurveyCopy } from "../survey-context";
 import type { AnswerValue, QuestionOption, SurveyQuestion as SurveyQuestionType } from "../survey-types";
 import { EditableText, OptionsEditor } from "./question-editor";
 import { DropdownInput, MultipleChoiceInput, YesNoInput } from "./choice-questions";
 import { FileUploadInput } from "./file-upload-question";
+import { AnswerFeedback, GradedAnswer } from "./graded-answer";
 import { MatrixInput } from "./matrix-question";
 import { QuestionMessage } from "./question-parts";
 import { RankingInput } from "./ranking-question";
@@ -34,6 +36,11 @@ export interface SurveyQuestionProps {
      * description and answer options are edited in place. Answering is disabled.
      */
     editor?: QuestionEditor;
+    /**
+     * Quizzes: show this scored question's answer marked right or wrong, with the
+     * explanation, instead of the input. The answer can't be changed.
+     */
+    revealed?: boolean;
     className?: string;
 }
 
@@ -41,6 +48,8 @@ export interface QuestionEditor {
     onChange: (question: SurveyQuestionType) => void;
     /** Put the cursor in the title (a just-added question). */
     autoFocus?: boolean;
+    /** Quiz mode: scored questions get a "correct answer" control on each option. */
+    quiz?: boolean;
 }
 
 /**
@@ -61,6 +70,7 @@ export const SurveyQuestion = ({
     title,
     description,
     editor,
+    revealed = false,
     className,
 }: SurveyQuestionProps) => {
     const { copy } = useSurveyCopy();
@@ -80,6 +90,7 @@ export const SurveyQuestion = ({
         onCommit,
     };
     const isStatement = question.type === "statement";
+    const showGraded = revealed && !editor && isScored(question);
 
     return (
         <div className={cx("@container/survey flex w-full flex-col gap-6 @xl/survey:gap-8", className)}>
@@ -132,20 +143,30 @@ export const SurveyQuestion = ({
                 <OptionsEditor
                     label="Answer options"
                     options={question.options}
-                    onChange={(options: QuestionOption[]) => editor.onChange({ ...question, options } as SurveyQuestionType)}
+                    onChange={(options: QuestionOption[], correct?: string[]) =>
+                        editor.onChange({ ...question, options, ...(correct !== undefined && { correct }) } as SurveyQuestionType)
+                    }
                     autoFocusFirstEmpty={editor.autoFocus && !!question.title}
                     showLetters={question.type !== "dropdown"}
+                    correct={editor.quiz && isScored(question) ? question.correct : undefined}
+                    multipleCorrect={question.type === "multiple_choice" && !!question.multiple}
+                    onCorrectChange={(correct) => editor.onChange({ ...question, correct })}
                 />
             ) : editor ? (
                 // The rest preview as participants see them; their settings live in the side panel.
                 <div inert className="pointer-events-none select-none">
                     {renderInput(question, undefined, () => {}, { ...shared, shortcuts: false })}
                 </div>
+            ) : showGraded ? (
+                <div className="flex flex-col gap-4">
+                    <GradedAnswer question={question} value={value} labelId={labelId} />
+                    <AnswerFeedback question={question} value={value} />
+                </div>
             ) : (
                 renderInput(question, value, onChange, shared)
             )}
 
-            {!isStatement && !editor && <QuestionMessage id={messageId}>{message}</QuestionMessage>}
+            {!isStatement && !editor && !showGraded && <QuestionMessage id={messageId}>{message}</QuestionMessage>}
         </div>
     );
 };

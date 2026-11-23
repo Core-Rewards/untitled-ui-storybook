@@ -1,3 +1,4 @@
+import { DEFAULT_QUIZ_SETTINGS, isQuiz, maxQuizReward, quizSetupProblems, revealOf, scoredQuestions } from "../quiz-logic";
 import { countAnswerable, estimateMinutes } from "../survey-logic";
 import type { Survey } from "../survey-types";
 import { LANGUAGE_NAMES, secondLocaleOf, translationProgress } from "./builder-model";
@@ -24,8 +25,9 @@ const fmt = (iso: string, timeZone: string) =>
 
 /**
  * The review checklist shown before publishing (A8): questions and time, languages,
- * logic, reward and maximum cost, dates and anonymity. Errors block Publish and
- * each item links to the step that fixes it.
+ * logic, reward and maximum cost, dates and anonymity. Quizzes add Scoring (every
+ * scored question has its right answer, a valid pass mark) and check reward tiers.
+ * Errors block Publish and each item links to the step that fixes it.
  */
 export const buildChecklist = (
     survey: Survey,
@@ -37,6 +39,9 @@ export const buildChecklist = (
 ): ChecklistItem[] => {
     const items: ChecklistItem[] = [];
     const n = countAnswerable(survey.questions);
+    const quiz = isQuiz(survey);
+    const noun = quiz ? "quiz" : "survey";
+    const qn = (id: string) => `Q${survey.questions.findIndex((q) => q.id === id) + 1}`;
 
     // Questions
     const untitled = survey.questions.filter((q) => !q.title.trim()).length;
@@ -54,10 +59,45 @@ export const buildChecklist = (
         items.push({
             id: "questions",
             label: "Questions",
-            detail: `${n} ${n === 1 ? "question" : "questions"}, about ${estimateMinutes(survey.questions)} min.${n > 10 ? " Long surveys get fewer completions." : ""}`,
+            detail: `${n} ${n === 1 ? "question" : "questions"}, about ${estimateMinutes(survey.questions)} min.${n > 10 ? ` Long ${noun === "quiz" ? "quizzes" : "surveys"} get fewer completions.` : ""}`,
             status: n > 10 ? "warning" : "ok",
             fixIn: "questions",
         });
+
+    // Scoring (quizzes)
+    const problems = quiz ? quizSetupProblems(survey) : undefined;
+    if (quiz && problems) {
+        const settings = survey.quiz ?? DEFAULT_QUIZ_SETTINGS;
+        const scored = scoredQuestions(survey).length;
+        const reveal = { at_end: "Answers shown at the end.", each_question: "Answers shown after each question.", never: "Only the score is shown." }[
+            revealOf(settings)
+        ];
+        if (problems.noneScored)
+            items.push({
+                id: "scoring",
+                label: "Scoring",
+                detail: "No scored questions. Turn on Score this question for at least one question.",
+                status: "error",
+                fixIn: "questions",
+            });
+        else if (problems.unanswered.length)
+            items.push({
+                id: "scoring",
+                label: "Scoring",
+                detail: `${problems.unanswered.map((q) => qn(q.id)).join(", ")} ${problems.unanswered.length === 1 ? "needs" : "need"} a correct answer.`,
+                status: "error",
+                fixIn: "questions",
+            });
+        else if (problems.passMarkProblem) items.push({ id: "scoring", label: "Scoring", detail: problems.passMarkProblem, status: "error", fixIn: "settings" });
+        else
+            items.push({
+                id: "scoring",
+                label: "Scoring",
+                detail: `${scored} scored ${scored === 1 ? "question" : "questions"}, pass mark ${settings.passMark}%. ${reveal}`,
+                status: "ok",
+                fixIn: "settings",
+            });
+    }
 
     // Languages
     // Only surveys offered in a second language need a translation.
@@ -81,7 +121,6 @@ export const buildChecklist = (
 
     // Logic
     const logic = analyzeLogic(survey);
-    const qn = (id: string) => `Q${survey.questions.findIndex((q) => q.id === id) + 1}`;
     if (logic.unreachable.length || logic.loops.length) {
         items.push({
             id: "logic",
@@ -108,16 +147,33 @@ export const buildChecklist = (
     }
 
     // Reward
+    const rule = quiz ? (survey.quiz?.rewardRule ?? "completion") : "completion";
     if (!survey.reward)
-        items.push({ id: "reward", label: "Reward", detail: "No reward. Rewarded surveys usually get more responses.", status: "warning", fixIn: "reward" });
-    else if (!survey.reward.amount || survey.reward.amount <= 0)
-        items.push({ id: "reward", label: "Reward", detail: "Set an amount above 0.", status: "error", fixIn: "reward" });
-    else {
-        const unit = survey.reward.type === "points" ? "points" : survey.reward.type === "sweepstakes" ? "sweepstakes entries" : "arcade spins";
         items.push({
             id: "reward",
             label: "Reward",
-            detail: `${survey.reward.amount.toLocaleString("en-US")} ${unit} each. Up to ${(survey.reward.amount * eligibleParticipants).toLocaleString("en-US")} ${unit} if all ${eligibleParticipants.toLocaleString("en-US")} participants finish.`,
+            detail: `No reward. Rewarded ${quiz ? "quizzes" : "surveys"} usually get more responses.`,
+            status: "warning",
+            fixIn: "reward",
+        });
+    else if (problems?.tierProblem) items.push({ id: "reward", label: "Reward", detail: problems.tierProblem, status: "error", fixIn: "reward" });
+    else if (rule !== "tiered" && (!survey.reward.amount || survey.reward.amount <= 0))
+        items.push({ id: "reward", label: "Reward", detail: "Set an amount above 0.", status: "error", fixIn: "reward" });
+    else {
+        const unit = survey.reward.type === "points" ? "points" : survey.reward.type === "sweepstakes" ? "sweepstakes entries" : "arcade spins";
+        const top = quiz ? maxQuizReward(survey) : survey.reward.amount;
+        const max = (top * eligibleParticipants).toLocaleString("en-US");
+        const everyone = eligibleParticipants.toLocaleString("en-US");
+        const tiers = survey.quiz?.tiers?.length ?? 0;
+        items.push({
+            id: "reward",
+            label: "Reward",
+            detail:
+                rule === "pass"
+                    ? `${top.toLocaleString("en-US")} ${unit} for passing. Up to ${max} ${unit} if all ${everyone} participants pass.`
+                    : rule === "tiered"
+                      ? `Up to ${top.toLocaleString("en-US")} ${unit} each, in ${tiers} ${tiers === 1 ? "tier" : "tiers"} by score. Up to ${max} ${unit} if all ${everyone} participants score 100%.`
+                      : `${top.toLocaleString("en-US")} ${unit} each. Up to ${max} ${unit} if all ${everyone} participants finish.`,
             status: "ok",
             fixIn: "reward",
         });
@@ -127,7 +183,7 @@ export const buildChecklist = (
     const opens = new Date(survey.opensAt).getTime();
     const closes = new Date(survey.closesAt).getTime();
     if (!survey.opensAt || !survey.closesAt || Number.isNaN(opens) || Number.isNaN(closes))
-        items.push({ id: "dates", label: "Dates", detail: "Set when the survey opens and closes.", status: "error", fixIn: "schedule" });
+        items.push({ id: "dates", label: "Dates", detail: `Set when the ${noun} opens and closes.`, status: "error", fixIn: "schedule" });
     else if (closes <= opens)
         items.push({ id: "dates", label: "Dates", detail: "The close date must be after the open date.", status: "error", fixIn: "schedule" });
     else if (closes <= now.getTime())
@@ -145,10 +201,11 @@ export const buildChecklist = (
     items.push({
         id: "anonymity",
         label: "Responses",
-        detail:
-            survey.anonymity === "anonymous"
-                ? "Anonymous. Results never show who answered. Locks after the first response."
-                : "Identified. Results show who gave each answer. Locks after the first response.",
+        detail: quiz
+            ? "Identified. Results show each person's score and answers."
+            : survey.anonymity === "anonymous"
+              ? "Anonymous. Results never show who answered. Locks after the first response."
+              : "Identified. Results show who gave each answer. Locks after the first response.",
         status: "ok",
         fixIn: "settings",
     });

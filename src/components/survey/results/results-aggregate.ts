@@ -1,5 +1,6 @@
 import { isChoiceAnswer, OTHER_OPTION_ID } from "../survey-logic";
-import type { AnswerValue, Survey, SurveyQuestion, UploadedFile } from "../survey-types";
+import { DEFAULT_QUIZ_SETTINGS, isCorrect, isQuiz, isScored, meets, quizRewardFor, scorePercent, scoreQuiz } from "../quiz-logic";
+import type { AnswerValue, QuizScore, Survey, SurveyQuestion, SurveyReward, UploadedFile } from "../survey-types";
 import type { ResultResponse, ResultsFilters } from "./results-types";
 
 /** Groups smaller than this are hidden on anonymous surveys so no one can be singled out. */
@@ -41,12 +42,93 @@ export const computeKpis = (survey: Survey, inScope: ResultResponse[]) => {
     };
 };
 
+// ─── Quizzes ─────────────────────────────────────────────────────────────────
+
+export interface QuizResult {
+    score: QuizScore;
+    /** Whole percent, never rounded up to the pass mark. */
+    percent: number;
+    /** What this response was paid under the reward rule. */
+    reward?: SurveyReward;
+}
+
+/** A complete response's quiz result. Undefined for surveys and partial responses, which have no score. */
+export const quizResultFor = (survey: Survey, r: ResultResponse): QuizResult | undefined => {
+    if (!isQuiz(survey) || r.status !== "complete") return undefined;
+    const score = scoreQuiz(survey, r.answers);
+    return { score, percent: scorePercent(score), reward: quizRewardFor(survey, score) };
+};
+
+/** Quiz header metrics over the filtered responses. Scores only count complete responses. */
+export const computeQuizKpis = (survey: Survey, inScope: ResultResponse[]) => {
+    const base = computeKpis(survey, inScope);
+    const results = inScope.map((r) => quizResultFor(survey, r)).filter((x): x is QuizResult => !!x);
+    const n = results.length;
+    return {
+        ...base,
+        averagePercent: n ? results.reduce((s, x) => s + (x.score.total ? (x.score.correct / x.score.total) * 100 : 0), 0) / n : undefined,
+        passed: results.filter((x) => x.score.passed).length,
+        passRate: n ? results.filter((x) => x.score.passed).length / n : undefined,
+        /** Actual payouts: a quiz may pay less than the full reward, or nothing. */
+        rewardIssued: results.reduce((s, x) => s + (x.reward?.amount ?? 0), 0),
+        rewarded: results.filter((x) => x.reward).length,
+    };
+};
+
+export interface ScoreBucket {
+    label: string;
+    count: number;
+    pct: number;
+    /** Scores in this bucket reach the pass mark. */
+    passes: boolean;
+}
+
+/**
+ * How complete responses scored. When everyone had the same number of scored
+ * questions (no jump logic skipped any), one bar per number correct, "0 of 5" to
+ * "5 of 5"; otherwise bars by percent in steps of 10.
+ */
+export const scoreDistribution = (survey: Survey, responses: ResultResponse[]) => {
+    const passMark = survey.quiz?.passMark ?? DEFAULT_QUIZ_SETTINGS.passMark;
+    const scores = responses.map((r) => quizResultFor(survey, r)?.score).filter((s): s is QuizScore => !!s);
+    const totals = new Set(scores.map((s) => s.total));
+    const n = scores.length;
+    if (totals.size <= 1) {
+        const total = scores[0]?.total ?? 0;
+        const buckets: ScoreBucket[] = Array.from({ length: total + 1 }, (_, c) => {
+            const count = scores.filter((s) => s.correct === c).length;
+            return { label: `${c} of ${total}`, count, pct: pct(count, n), passes: meets(c, total, passMark) };
+        });
+        return { passMark, byCount: true, buckets, scored: n };
+    }
+    const buckets: ScoreBucket[] = Array.from({ length: 11 }, (_, i) => {
+        const lo = i * 10;
+        const count = scores.filter((s) => Math.min(10, Math.floor((s.correct / s.total) * 10)) === i).length;
+        return { label: i === 10 ? "100%" : `${lo} to ${lo + 9}%`, count, pct: pct(count, n), passes: lo >= passMark };
+    });
+    return { passMark, byCount: false, buckets, scored: n };
+};
+
 // ─── Per-question summaries ──────────────────────────────────────────────────
 
-export type BarRow = { label: string; count: number; pct: number };
+export type BarRow = {
+    label: string;
+    count: number;
+    pct: number;
+    /** Quizzes: this option is (one of) the right answer(s). */
+    correct?: boolean;
+};
 
 export type QuestionSummary =
-    | { kind: "bars"; answered: number; rows: BarRow[]; average?: number; multi?: boolean }
+    | {
+          kind: "bars";
+          answered: number;
+          rows: BarRow[];
+          average?: number;
+          multi?: boolean;
+          /** Quizzes, scored questions: percent of those who answered who got it right. */
+          correctPct?: number;
+      }
     | { kind: "nps"; answered: number; score: number; promoters: number; passives: number; detractors: number }
     | { kind: "ranking"; answered: number; rows: { label: string; averageRank: number }[] }
     | { kind: "matrix"; answered: number; columns: string[]; rows: { label: string; pcts: number[] }[] }
@@ -65,6 +147,11 @@ export const summarize = (q: SurveyQuestion, responses: ResultResponse[]): Quest
     const withAnswer = responses.filter((r) => has(r.answers[q.id]));
     const values = withAnswer.map((r) => r.answers[q.id]!);
     const n = withAnswer.length;
+    // Scored quiz questions mark their right answer and how many got it.
+    const scored = isScored(q);
+    const right = new Set(q.correct ?? []);
+    const grade = (rows: (BarRow & { id: string })[]): BarRow[] => rows.map(({ id, ...row }) => (scored ? { ...row, correct: right.has(id) } : row));
+    const correctPct = scored ? pct(withAnswer.filter((r) => isCorrect(q, r.answers[q.id])).length, n) : undefined;
 
     switch (q.type) {
         case "multiple_choice": {
@@ -75,7 +162,8 @@ export const summarize = (q: SurveyQuestion, responses: ResultResponse[]): Quest
                 kind: "bars",
                 answered: n,
                 multi: !!q.multiple,
-                rows: options.map((o) => ({ label: o.label, count: counts.get(o.id) ?? 0, pct: pct(counts.get(o.id) ?? 0, n) })),
+                correctPct,
+                rows: grade(options.map((o) => ({ id: o.id, label: o.label, count: counts.get(o.id) ?? 0, pct: pct(counts.get(o.id) ?? 0, n) }))),
             };
         }
         case "dropdown":
@@ -87,11 +175,13 @@ export const summarize = (q: SurveyQuestion, responses: ResultResponse[]): Quest
                           { id: "yes", label: q.yesLabel ?? "Yes" },
                           { id: "no", label: q.noLabel ?? "No" },
                       ];
-            const rows = options.map((o) => {
-                const c = values.filter((v) => v === o.id).length;
-                return { label: o.label, count: c, pct: pct(c, n) };
-            });
-            return { kind: "bars", answered: n, rows: q.type === "dropdown" ? rows.sort((a, b) => b.count - a.count) : rows };
+            const rows = grade(
+                options.map((o) => {
+                    const c = values.filter((v) => v === o.id).length;
+                    return { id: o.id, label: o.label, count: c, pct: pct(c, n) };
+                }),
+            );
+            return { kind: "bars", answered: n, correctPct, rows: q.type === "dropdown" ? rows.sort((a, b) => b.count - a.count) : rows };
         }
         case "rating":
         case "opinion_scale": {
@@ -202,6 +292,7 @@ export const answerText = (q: SurveyQuestion, v: AnswerValue | undefined): strin
  */
 export const toRawCsv = (survey: Survey, responses: ResultResponse[]) => {
     const identified = survey.anonymity === "identified";
+    const quiz = isQuiz(survey);
     const questions = survey.questions.filter((q) => q.type !== "statement");
     const header = [
         "response_number",
@@ -211,7 +302,13 @@ export const toRawCsv = (survey: Survey, responses: ResultResponse[]) => {
         "submitted_at",
         "duration_seconds",
         ...(identified ? ["name", "account", "region", "role"] : []),
-        ...questions.flatMap((q, i) => (q.type === "matrix" ? q.rows.map((r) => `Q${i + 1} ${q.title} [${r.label}]`) : [`Q${i + 1} ${q.title}`])),
+        ...(quiz ? ["score", "out_of", "percent", "passed", "reward_earned"] : []),
+        ...questions.flatMap((q) => {
+            const n = survey.questions.indexOf(q) + 1;
+            if (q.type === "matrix") return q.rows.map((r) => `Q${n} ${q.title} [${r.label}]`);
+            // Scored quiz questions get a right/wrong column beside the answer.
+            return quiz && isScored(q) ? [`Q${n} ${q.title}`, `Q${n} correct`] : [`Q${n} ${q.title}`];
+        }),
     ];
     const rows = responses.map((r) => [
         r.number,
@@ -221,21 +318,33 @@ export const toRawCsv = (survey: Survey, responses: ResultResponse[]) => {
         r.submittedAt ?? "",
         r.durationSeconds ?? "",
         ...(identified ? [r.participant?.name, r.participant?.account, r.participant?.region, r.participant?.role] : []),
+        ...(quiz ? quizCells(survey, r) : []),
         ...questions.flatMap((q) => {
             const t = answerText(q, r.answers[q.id]);
-            return Array.isArray(t) ? t : [t];
+            const cells = Array.isArray(t) ? t : [t];
+            if (!(quiz && isScored(q))) return cells;
+            // Partial responses aren't graded, and unanswered questions on them stay blank.
+            return [...cells, r.status === "complete" ? (isCorrect(q, r.answers[q.id]) ? "yes" : "no") : ""];
         }),
     ]);
     return [header, ...rows].map(csvRow).join("\n");
 };
 
-/** The summary as CSV: question, answer, count, percent. */
+const quizCells = (survey: Survey, r: ResultResponse) => {
+    const result = quizResultFor(survey, r);
+    if (!result) return ["", "", "", "", ""];
+    return [result.score.correct, result.score.total, result.percent, result.score.passed ? "yes" : "no", result.reward?.amount ?? 0];
+};
+
+/** The summary as CSV: question, answer, count, percent. Scored quiz questions add a "% correct" line and mark the right answer. */
 export const toSummaryCsv = (survey: Survey, responses: ResultResponse[]) => {
     const lines: unknown[][] = [["question", "answer", "count", "percent"]];
     survey.questions.forEach((q, i) => {
         const s = summarize(q, responses);
         const label = `Q${i + 1} ${q.title}`;
-        if (s.kind === "bars" || s.kind === "numeric") s.rows.forEach((r) => lines.push([label, r.label, r.count, `${r.pct}%`]));
+        if (s.kind === "bars" && s.correctPct !== undefined) lines.push([label, "% answered correctly", s.answered, `${s.correctPct}%`]);
+        if (s.kind === "bars" || s.kind === "numeric")
+            s.rows.forEach((r) => lines.push([label, r.correct ? `${r.label} (correct)` : r.label, r.count, `${r.pct}%`]));
         if (s.kind === "nps")
             lines.push(
                 [label, "NPS", s.answered, s.score],

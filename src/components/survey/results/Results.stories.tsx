@@ -3,7 +3,11 @@ import { fn } from "storybook/test";
 import { ADMIN_NOW, AdminDemoShell } from "../stories/admin-demo-shell";
 import { getSatisfactionSurvey } from "../survey-sample-data";
 import { ResultsPage } from "./results-page";
+import { generateQuizResults, getLiveQuizForResults } from "./quiz-results-sample-data";
 import { generateSatisfactionResults } from "./results-sample-data";
+
+const liveQuiz = getLiveQuizForResults();
+const quizResponses = generateQuizResults();
 
 const liveSurvey = getSatisfactionSurvey("en", { status: "live", opensAt: "2026-12-01T09:00:00-05:00", closesAt: "2026-12-15T23:59:00-05:00" });
 const responses = generateSatisfactionResults();
@@ -24,6 +28,7 @@ const meta = {
                     "- **Responses:** one row per response; open one to read it in the side drawer and step through with Newer / Older.",
                     "- **Privacy:** anonymous surveys never show names, and any filter leaving fewer than 5 responses is hidden.",
                     "- **Export:** CSV (downloads in the browser) or Excel (made by the platform), raw or summary, with or without partials. EN and FR answers share columns plus a language column.",
+                    "- **Quizzes:** responses, average score, pass rate and what was actually paid (a quiz can pay less, or nothing). A score distribution marks the pass mark; scored questions show the right answer and how many got it; the table and drawer show each score and which answers were wrong. Exports add score, passed, reward and a right/wrong column per scored question.",
                 ].join("\n"),
             },
         },
@@ -67,3 +72,32 @@ export const SmallGroupHidden: Story = { name: "Small group hidden", args: { res
 
 /** Live, but no responses yet. */
 export const NoResponses: Story = { name: "No responses yet", args: { responses: [] } };
+
+// ─── Quizzes ─────────────────────────────────────────────────────────────────
+
+/** A live quiz paying 250 points on a pass (80%): average score, pass rate, score distribution and the right answer on each scored question. */
+export const QuizSummary: Story = { name: "Quiz summary", args: { survey: liveQuiz, responses: quizResponses } };
+
+/** Score and Result columns. Open a row to see which answers were wrong and the right ones. */
+export const QuizResponses: Story = { name: "Quiz responses", args: { survey: liveQuiz, responses: quizResponses, initialTab: "responses" } };
+
+/** Tiered rewards (100% → 500, 80% → 300, 60% → 150): Points issued adds up what each person actually earned. */
+export const QuizTiered: Story = {
+    name: "Quiz with tiered rewards",
+    args: {
+        survey: getLiveQuizForResults({
+            reward: { type: "points", amount: 500 },
+            quiz: {
+                passMark: 60,
+                rewardRule: "tiered",
+                reveal: "at_end",
+                tiers: [
+                    { minScore: 100, amount: 500 },
+                    { minScore: 80, amount: 300 },
+                    { minScore: 60, amount: 150 },
+                ],
+            },
+        }),
+        responses: quizResponses,
+    },
+};

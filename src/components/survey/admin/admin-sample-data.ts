@@ -13,6 +13,7 @@ import {
     LifeBuoy01,
     PieChart03,
     Settings01,
+    ShieldTick,
     Tag01,
     Users01,
 } from "@untitledui/icons";
@@ -137,12 +138,44 @@ export const sampleSurveyList: SurveyListItem[] = [
         locales: ["en", "fr"],
         updatedAt: "2026-10-15T08:00:00-04:00",
     },
+    {
+        id: "quiz-fungicides-2027",
+        kind: "quiz",
+        title: "2027 Fungicide Lineup Quiz",
+        status: "live",
+        questionCount: 6,
+        minutes: 2,
+        anonymity: "identified",
+        opensAt: "2026-12-02T09:00:00-05:00",
+        closesAt: "2026-12-18T23:59:00-05:00",
+        timezone: "America/Toronto",
+        responses: 286,
+        completionRate: 0.91,
+        reward: { type: "points", amount: 250 },
+        quizRewardRule: "pass",
+        locales: ["en", "fr"],
+        updatedAt: "2026-12-01T15:30:00-05:00",
+    },
+    {
+        id: "quiz-seed-treatment",
+        kind: "quiz",
+        title: "Seed Treatment Basics",
+        status: "draft",
+        questionCount: 4,
+        minutes: 1,
+        anonymity: "identified",
+        timezone: "America/Toronto",
+        reward: { type: "points", amount: 500 },
+        quizRewardRule: "tiered",
+        locales: ["en"],
+        updatedAt: "2026-12-08T16:20:00-05:00",
+    },
 ];
 
 // ─── Template library (Core-managed) ─────────────────────────────────────────
 
-/** Every template in the library. The three starters come first. */
-export const templateLibrary: SurveyTemplate[] = [
+/** Survey templates. The three starters come first. */
+const surveyTemplateLibrary: SurveyTemplate[] = [
     {
         id: "tpl-program-satisfaction",
         title: "Program satisfaction",
@@ -243,5 +276,48 @@ export const templateLibrary: SurveyTemplate[] = [
     },
 ];
 
-/** The three starters, for the list's empty state. */
-export const starterTemplates = templateLibrary.filter((t) => t.isStarter);
+/** Quiz templates. Correct answers are marked; admins swap in their own products and check them. */
+export const quizTemplateLibrary: SurveyTemplate[] = [
+    {
+        id: "tpl-product-knowledge",
+        kind: "quiz",
+        title: "Product knowledge check",
+        description: "What a product controls, its intervals and rates. Swap in your product; the right answers are marked for you to check.",
+        questionCount: 5,
+        minutes: 2,
+        hasFrench: true,
+        icon: GraduationHat01,
+        category: "Product training",
+        isStarter: true,
+        questions: [
+            { type: "Multiple choice · scored", title: "Which disease is [product] labelled for?" },
+            { type: "Multiple choice · scored", title: "What's the restricted-entry interval?" },
+            { type: "Yes / No · scored", title: "Can [product] be applied by air?" },
+            { type: "Multiple choice, pick any · scored", title: "Which crops is [product] registered for?" },
+            { type: "Opinion scale · not scored", title: "How confident do you feel recommending [product]?" },
+        ],
+    },
+    {
+        id: "tpl-label-safety",
+        kind: "quiz",
+        title: "Label safety refresher",
+        description: "PPE, re-entry and storage basics from the label. A good yearly refresher.",
+        questionCount: 4,
+        minutes: 1,
+        hasFrench: true,
+        icon: ShieldTick,
+        category: "Safety",
+        questions: [
+            { type: "Multiple choice · scored", title: "Which PPE does the label require when mixing?" },
+            { type: "Yes / No · scored", title: "Can you re-enter before the interval if you wear PPE?" },
+            { type: "Dropdown · scored", title: "How far from water must the product be stored?" },
+            { type: "Multiple choice · scored", title: "Where do you find first-aid instructions?" },
+        ],
+    },
+];
+
+/** Every template in the library, surveys and quizzes. New survey shows the ones for the kind being created. */
+export const templateLibrary: SurveyTemplate[] = [...surveyTemplateLibrary, ...quizTemplateLibrary];
+
+/** The three survey starters, for the list's empty state. */
+export const starterTemplates = surveyTemplateLibrary.filter((t) => t.isStarter);

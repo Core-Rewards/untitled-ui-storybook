@@ -7,6 +7,7 @@ import { Dialog, Modal, ModalOverlay } from "@/components/application/modals/mod
 import { Button } from "@/components/base/buttons/button";
 import { DatePicker } from "@/components/base/date-picker/date-picker";
 import { cx } from "@/utils/cx";
+import { isQuiz, maxQuizReward } from "../quiz-logic";
 import type { Survey } from "../survey-types";
 import { LANGUAGE_NAMES, secondLocaleOf } from "./builder-model";
 import type { Translations } from "./builder-model";
@@ -92,6 +93,16 @@ export const ScheduleStep = ({
     const setEmails = (patch: Partial<typeof emails>) => onChange({ ...survey, emails: { ...emails, ...patch } });
 
     const checklist = buildChecklist(survey, translations, eligibleParticipants, now, unreviewedDrafts);
+    const quiz = isQuiz(survey);
+    const noun = quiz ? "quiz" : "survey";
+    const unitOf = (type: NonNullable<Survey["reward"]>["type"]) => (type === "points" ? "points" : type === "sweepstakes" ? "sweepstakes entries" : "arcade spins");
+    const inviteSubject = !survey.reward
+        ? quiz
+            ? `${survey.title}: test what you know`
+            : `${survey.title}: 2 minutes of feedback`
+        : quiz
+          ? `${survey.quiz?.rewardRule === "pass" ? "Pass to earn" : survey.quiz?.rewardRule === "tiered" ? "Earn up to" : "Earn"} ${maxQuizReward(survey).toLocaleString("en-US")} ${unitOf(survey.reward.type)}: ${survey.title}`
+          : `Earn ${survey.reward.amount.toLocaleString("en-US")} ${unitOf(survey.reward.type)} for 2 minutes of feedback`;
     const ready = canPublish(checklist);
     const blocking = checklist.filter((i) => i.status === "error").length;
     const scheduled = new Date(survey.opensAt).getTime() > now.getTime();
@@ -148,14 +159,10 @@ export const ScheduleStep = ({
                 />
             </StepCard>
 
-            <StepCard title="Emails" description="Sent in each participant's language, with a button that opens the survey after sign-in.">
+            <StepCard title="Emails" description={`Sent in each participant's language, with a button that opens the ${noun} after sign-in.`}>
                 <SettingToggle
                     label="Invite email when it opens"
-                    hint={
-                        survey.reward
-                            ? `Subject: “Earn ${survey.reward.amount.toLocaleString("en-US")} ${survey.reward.type === "points" ? "points" : survey.reward.type === "sweepstakes" ? "sweepstakes entries" : "arcade spins"} for 2 minutes of feedback”`
-                            : `Subject: “${survey.title}: 2 minutes of feedback”`
-                    }
+                    hint={`Subject: “${inviteSubject}”`}
                     isSelected={emails.inviteAtOpen}
                     onChange={(inviteAtOpen) => setEmails({ inviteAtOpen })}
                 />
@@ -237,7 +244,7 @@ export const ScheduleStep = ({
 
             <ModalOverlay isOpen={confirmOpen} onOpenChange={setConfirmOpen} isDismissable>
                 <Modal className="max-w-lg">
-                    <Dialog aria-label={scheduled ? "Schedule survey" : "Publish survey"}>
+                    <Dialog aria-label={`${scheduled ? "Schedule" : "Publish"} ${noun}`}>
                         <div className="flex w-full flex-col gap-4 rounded-2xl bg-primary p-6 shadow-xl">
                             <Heading slot="title" className="text-lg font-semibold text-primary">
                                 {scheduled ? `Schedule ${survey.title}?` : `Publish ${survey.title}?`}
@@ -251,10 +258,14 @@ export const ScheduleStep = ({
                                 {emails.inviteAtOpen && <li>The invite email goes out {scheduled ? "when it opens" : "now"}.</li>}
                                 {emails.reminder && <li>A reminder goes out {fmtDay(reminderAt, tz)} to anyone who hasn't finished.</li>}
                                 <li>It closes {fmtDay(survey.closesAt, tz)}.</li>
-                                <li>
-                                    {survey.anonymity === "anonymous" ? "Answers are anonymous" : "Answers are linked to accounts"}. This locks after the first
-                                    response.
-                                </li>
+                                {quiz ? (
+                                    <li>Scores and answers are linked to accounts. Each participant gets one try.</li>
+                                ) : (
+                                    <li>
+                                        {survey.anonymity === "anonymous" ? "Answers are anonymous" : "Answers are linked to accounts"}. This locks after the first
+                                        response.
+                                    </li>
+                                )}
                             </ul>
                             <div className="flex justify-end gap-3">
                                 <Button color="secondary" size="md" onClick={() => setConfirmOpen(false)}>

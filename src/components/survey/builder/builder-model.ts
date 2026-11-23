@@ -1,4 +1,5 @@
-import type { QuestionOption, Survey, SurveyLocale, SurveyQuestion, SurveyQuestionType } from "../survey-types";
+import { canBeScored, isScored } from "../quiz-logic";
+import type { QuestionOption, Survey, SurveyKind, SurveyLocale, SurveyQuestion, SurveyQuestionType } from "../survey-types";
 import { typeInfo } from "./question-catalog";
 
 /*
@@ -23,8 +24,17 @@ export const newQuestionId = (survey: Survey) => {
 
 const emptyOptions = (n: number): QuestionOption[] => Array.from({ length: n }, () => ({ id: newOptionId(), label: "" }));
 
-/** A new question of a type, with defaults from the plan: two empty options for choices, NPS pre-filled, and so on. */
-export const createQuestion = (type: SurveyQuestionType, id: string, programName = "the program"): SurveyQuestion => {
+/**
+ * A new question of a type, with defaults from the plan: two empty options for choices,
+ * NPS pre-filled, and so on. In a quiz, types that can be scored start scored and
+ * required, with the correct answer still to pick.
+ */
+export const createQuestion = (type: SurveyQuestionType, id: string, programName = "the program", kind: SurveyKind = "survey"): SurveyQuestion => {
+    const question = createBaseQuestion(type, id, programName);
+    return kind === "quiz" && canBeScored(question) ? { ...question, required: true, correct: [] } : question;
+};
+
+const createBaseQuestion = (type: SurveyQuestionType, id: string, programName: string): SurveyQuestion => {
     const base = { id, title: "", required: true };
     switch (type) {
         case "multiple_choice":
@@ -86,9 +96,10 @@ export const changeQuestionType = (
     question: SurveyQuestion,
     type: SurveyQuestionType,
     programName?: string,
+    kind: SurveyKind = "survey",
 ): { question: SurveyQuestion; dropped: string[] } => {
     if (question.type === type) return { question, dropped: [] };
-    const fresh = createQuestion(type, question.id, programName);
+    const fresh = createQuestion(type, question.id, programName, kind);
     const dropped: string[] = [];
     const next = { ...fresh, title: question.title || fresh.title, description: question.description, required: question.required } as SurveyQuestion;
 
@@ -105,6 +116,28 @@ export const changeQuestionType = (
 
     if (question.type === "matrix" && type !== "matrix" && question.rows.some((r) => r.label.trim())) dropped.push("matrix rows");
 
+    // Quiz scoring: keep the right answer when the options carry over, otherwise start again.
+    if (kind === "quiz") {
+        const hadAnswer = !!question.correct?.length;
+        const hadExplanation = !!question.explanation?.trim();
+        if (!canBeScored(next)) {
+            next.correct = undefined;
+            next.explanation = undefined;
+            if (hadAnswer || hadExplanation) dropped.push(hadExplanation ? "the correct answer and explanation" : "the correct answer");
+        } else if (canBeScored(question) && question.correct === undefined) {
+            // The admin turned scoring off for this question; keep it off.
+            next.correct = undefined;
+            next.explanation = question.explanation;
+        } else {
+            const options = "options" in next ? next.options : [];
+            const kept = (question.correct ?? []).filter((id) => options.some((o) => o.id === id));
+            // Only multi-select can have more than one right answer, and the new question starts as pick one.
+            next.correct = kept.slice(0, 1);
+            next.explanation = question.explanation;
+            if (hadAnswer && next.correct.length < (question.correct?.length ?? 0)) dropped.push(kept.length ? "all but one correct answer" : "the correct answer");
+        }
+    }
+
     // Rules compare against this question's answers, so they rarely survive a type change.
     if (question.logic?.length) dropped.push(`${question.logic.length} logic ${question.logic.length === 1 ? "rule" : "rules"}`);
     next.defaultTarget = question.defaultTarget;
@@ -112,11 +145,12 @@ export const changeQuestionType = (
     return { question: next, dropped };
 };
 
-/** "Opinion scale · Required" / "Multiple choice · Pick any" for the outline. */
-export const questionSummary = (q: SurveyQuestion) => {
+/** "Opinion scale · Required" / "Multiple choice · Pick any" for the outline. Quizzes add "Scored" or "Not scored". */
+export const questionSummary = (q: SurveyQuestion, kind: SurveyKind = "survey") => {
     const parts: string[] = [typeInfo(q.type).label];
     if (q.type === "multiple_choice") parts.push(q.multiple ? "Pick any" : "Pick one");
     if (q.type !== "statement") parts.push(q.required ? "Required" : "Optional");
+    if (kind === "quiz" && q.type !== "statement") parts.push(isScored(q) ? "Scored" : "Not scored");
     return parts.join(" · ");
 };
 
@@ -147,6 +181,7 @@ export const extractStrings = (survey: Survey): SurveyStringEntry[] => {
         const n = `Q${i + 1}`;
         add(`${q.id}.title`, `${n} · question`, q.title);
         add(`${q.id}.description`, `${n} · description`, q.description);
+        add(`${q.id}.explanation`, `${n} · explanation`, q.explanation);
         if ("options" in q) q.options.forEach((o, j) => add(`${q.id}.option.${o.id}`, `${n} · option ${j + 1}`, o.label));
         if (q.type === "matrix") {
             q.rows.forEach((r, j) => add(`${q.id}.row.${r.id}`, `${n} · row ${j + 1}`, r.label));

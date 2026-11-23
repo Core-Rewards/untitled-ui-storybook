@@ -181,3 +181,36 @@ Decisions (Mike, Nov 23): quizzes are a **kind** of survey chosen at creation, q
 - **Reward wording:** "Earn 300 points" (completion), "Pass to earn 250 points" (pass), "Earn up to 500 points" (tiered). A quiz that wasn't passed shows neutral, not green.
 - **New shared piece:** `ActionRow`, the compact list version of `ActionCard`. Card and row share one description helper (`describeActivity`) so they always agree.
 
+
+### Quiz mode (branch `quiz-mode`)
+
+Quizzes are surveys with right answers. They use the same types, player, builder and results; `Survey.kind === "quiz"` switches the extras on. The weekly `Base/Quiz` (single question, streaks) is untouched for now.
+
+**Rules** (`quiz-logic.ts`, the single source for the player, builder, results and the platform's own grading):
+
+- Only **multiple choice** (single or multi), **dropdown** and **yes / no** can be scored. A question is scored when it has `correct` (option ids, or `"yes"` / `"no"`); `correct: []` means scored but not set yet, which blocks publishing. Other types are allowed in a quiz and are collected, not scored.
+- Multi-select is **all or nothing**: every correct option and no others. "Other" never counts as correct.
+- The total is the scored questions on the participant's path, so a question skipped by jump logic doesn't count against them. A scored question left blank is wrong.
+- Passing is `correct / total × 100 ≥ passMark`, unrounded. Displayed percents round down, so a fail never shows as the pass mark.
+- Rewards: **completion** (always), **pass** (only on a pass) or **tiered** (the highest tier reached; `reward.amount` is the top tier).
+- Quizzes are always **identified**: the score decides the reward and shows in the participant's history and in results.
+
+**When answers are shown** (`quiz.reveal`, set per quiz):
+
+| Setting | Participant sees |
+| --- | --- |
+| `each_question` | A **Check answer** step on each scored question: Correct / Not quite, the right answer and the explanation. Back is off, since a revealed answer can't change. |
+| `at_end` (default) | Everything on the results screen after submitting. Back works as in surveys. |
+| `never` | Only the score. For quizzes whose questions run again. |
+
+**Builder:** in a quiz, the add-question picker marks each type Scored or Not scored, and searching "scored" lists only the types that can be. Types added from the list start scored. Bank questions ask for opinions, so they're added unscored; Score this question turns scoring on.
+
+**Participant:** the intro shows the rule-aware reward ("Pass to earn 250 points"), pass mark and "One try". The results screen replaces the thank-you: score, passed or not (a fail is neutral, not red), the reward actually earned or what it would have taken, then a review of each scored answer. Opening a finished quiz says it's already been taken, with the score. Right and wrong are always shown with icons and words, not colour alone, and the feedback panel is announced.
+
+**Admin results:** quiz KPIs (responses, average score, pass rate, rewards actually paid), a score distribution with the pass mark marked, "% answered correctly" and the right option highlighted on each scored question, Score and Result columns, a drawer that marks each answer, and score columns in the CSV. Partial responses aren't scored.
+
+**For the platform team:**
+
+- Grade on submit with the same rules and return `{ score, reward }` from `onSubmit`. The player shows the platform's score when it's returned; its own grading is only a fallback for stories and Preview.
+- Don't send `correct` or `explanation` to the browser before they're needed. For `at_end`, leave them off the survey and return them as `answerKey` from `onSubmit`; the review fills them in. For `never`, don't send them at all. For `each_question` they're needed per question, so a determined participant could read them; use `at_end` when that matters.
+- No retakes: a completed quiz response is final.

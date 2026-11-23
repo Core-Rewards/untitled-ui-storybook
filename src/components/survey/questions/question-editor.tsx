@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import type { KeyboardEvent } from "react";
-import { Plus, XClose } from "@untitledui/icons";
+import { CheckCircle, Plus, XClose } from "@untitledui/icons";
 import { cx } from "@/utils/cx";
 import type { QuestionOption } from "../survey-types";
 import { letterFor } from "./question-keys";
@@ -65,7 +65,13 @@ export const EditableText = ({ value, onChange, placeholder, label, className, a
 
 interface OptionsEditorProps {
     options: QuestionOption[];
-    onChange: (options: QuestionOption[]) => void;
+    /** `correct` is passed when a change also changes the right answer (e.g. a correct option was removed). */
+    onChange: (options: QuestionOption[], correct?: string[]) => void;
+    /** Quiz mode: the correct option ids. Undefined hides the correct-answer controls. */
+    correct?: string[];
+    /** More than one option can be correct (multi-select). Otherwise marking one clears the rest. */
+    multipleCorrect?: boolean;
+    onCorrectChange?: (correct: string[]) => void;
     /** Accessible name of the list, e.g. "Answer options". */
     label: string;
     /** Focus the first empty option on mount (a just-added question). */
@@ -79,7 +85,17 @@ interface OptionsEditorProps {
  * Answer options as editable rows. Enter adds the next option, Backspace on an empty
  * option removes it, and pasting several lines splits them into options.
  */
-export const OptionsEditor = ({ options, onChange, label, autoFocusFirstEmpty, showLetters = true, addLabel = "Add option" }: OptionsEditorProps) => {
+export const OptionsEditor = ({
+    options,
+    onChange,
+    label,
+    autoFocusFirstEmpty,
+    showLetters = true,
+    addLabel = "Add option",
+    correct,
+    multipleCorrect,
+    onCorrectChange,
+}: OptionsEditorProps) => {
     const refs = useRef(new Map<string, HTMLInputElement>());
     const focusId = useRef<string | null>(null);
 
@@ -109,9 +125,19 @@ export const OptionsEditor = ({ options, onChange, label, autoFocusFirstEmpty, s
 
     const remove = (index: number) => {
         if (options.length <= 1) return;
+        const removed = options[index].id;
         const next = options.filter((_, i) => i !== index);
         focusId.current = next[Math.max(0, index - 1)].id;
-        onChange(next);
+        // A removed option can't stay the right answer.
+        onChange(next, correct?.includes(removed) ? correct.filter((id) => id !== removed) : undefined);
+    };
+
+    /** Radio semantics for pick-one questions (marking one clears the others); checkbox semantics for multi-select. */
+    const toggleCorrect = (id: string) => {
+        if (!correct || !onCorrectChange) return;
+        const isOn = correct.includes(id);
+        if (multipleCorrect) onCorrectChange(isOn ? correct.filter((c) => c !== id) : [...correct, id]);
+        else onCorrectChange(isOn ? [] : [id]);
     };
 
     const onKeyDown = (e: KeyboardEvent<HTMLInputElement>, index: number) => {
@@ -126,56 +152,78 @@ export const OptionsEditor = ({ options, onChange, label, autoFocusFirstEmpty, s
 
     return (
         <div role="group" aria-label={label} className="flex flex-col gap-2 @xl/survey:max-w-120">
-            {options.map((o, i) => (
-                <div
-                    key={o.id}
-                    className="group/option flex min-h-12 items-center gap-3 rounded-xl bg-primary px-4 py-2 ring-1 ring-primary ring-inset focus-within:ring-2 focus-within:ring-brand"
-                >
-                    {showLetters && (
-                        <span
-                            aria-hidden="true"
-                            className="flex size-6 shrink-0 items-center justify-center rounded-md text-xs font-semibold text-tertiary ring-1 ring-primary ring-inset"
-                        >
-                            {letterFor(i)}
-                        </span>
-                    )}
-                    <input
-                        ref={(el) => {
-                            if (el) refs.current.set(o.id, el);
-                            else refs.current.delete(o.id);
-                        }}
-                        aria-label={`Option ${i + 1}`}
-                        value={o.label}
-                        placeholder={`Option ${i + 1}`}
-                        onChange={(e) => update(o.id, e.target.value)}
-                        onKeyDown={(e) => onKeyDown(e, i)}
-                        onPaste={(e) => {
-                            const lines = e.clipboardData
-                                .getData("text")
-                                .split(/\r?\n/)
-                                .map((l) => l.trim())
-                                .filter(Boolean);
-                            if (lines.length < 2) return;
-                            e.preventDefault();
-                            const [first, ...rest] = lines;
-                            const withFirst = options.map((x) => (x.id === o.id ? { ...x, label: (x.label + first).trim() } : x));
-                            const added = rest.map((l) => ({ id: newId(), label: l }));
-                            focusId.current = added.at(-1)!.id;
-                            onChange([...withFirst.slice(0, i + 1), ...added, ...withFirst.slice(i + 1)]);
-                        }}
-                        className="min-w-0 flex-1 bg-transparent text-md font-medium text-primary outline-hidden placeholder:font-normal placeholder:text-placeholder"
-                    />
-                    <button
-                        type="button"
-                        aria-label={`Remove option ${i + 1}`}
-                        disabled={options.length <= 1}
-                        onClick={() => remove(i)}
-                        className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-fg-quaternary opacity-0 outline-focus-ring group-focus-within/option:opacity-100 group-hover/option:opacity-100 hover:bg-primary_hover focus-visible:opacity-100 focus-visible:outline-2 disabled:hidden"
+            {options.map((o, i) => {
+                const isCorrect = !!correct?.includes(o.id);
+                return (
+                    <div
+                        key={o.id}
+                        className={cx(
+                            "group/option flex min-h-12 items-center gap-3 rounded-xl bg-primary px-4 py-2 ring-1 ring-primary ring-inset focus-within:ring-2 focus-within:ring-brand",
+                            isCorrect && "bg-success-primary ring-2 ring-fg-success-secondary",
+                        )}
                     >
-                        <XClose className="size-4" />
-                    </button>
-                </div>
-            ))}
+                        {showLetters && (
+                            <span
+                                aria-hidden="true"
+                                className="flex size-6 shrink-0 items-center justify-center rounded-md text-xs font-semibold text-tertiary ring-1 ring-primary ring-inset"
+                            >
+                                {letterFor(i)}
+                            </span>
+                        )}
+                        <input
+                            ref={(el) => {
+                                if (el) refs.current.set(o.id, el);
+                                else refs.current.delete(o.id);
+                            }}
+                            aria-label={`Option ${i + 1}`}
+                            value={o.label}
+                            placeholder={`Option ${i + 1}`}
+                            onChange={(e) => update(o.id, e.target.value)}
+                            onKeyDown={(e) => onKeyDown(e, i)}
+                            onPaste={(e) => {
+                                const lines = e.clipboardData
+                                    .getData("text")
+                                    .split(/\r?\n/)
+                                    .map((l) => l.trim())
+                                    .filter(Boolean);
+                                if (lines.length < 2) return;
+                                e.preventDefault();
+                                const [first, ...rest] = lines;
+                                const withFirst = options.map((x) => (x.id === o.id ? { ...x, label: (x.label + first).trim() } : x));
+                                const added = rest.map((l) => ({ id: newId(), label: l }));
+                                focusId.current = added.at(-1)!.id;
+                                onChange([...withFirst.slice(0, i + 1), ...added, ...withFirst.slice(i + 1)]);
+                            }}
+                            className="min-w-0 flex-1 bg-transparent text-md font-medium text-primary outline-hidden placeholder:font-normal placeholder:text-placeholder"
+                        />
+                        {correct !== undefined && (
+                            <button
+                                type="button"
+                                aria-pressed={isCorrect}
+                                aria-label={`Option ${i + 1} is the correct answer`}
+                                title={isCorrect ? "Correct answer. Click to unmark." : "Mark as correct"}
+                                onClick={() => toggleCorrect(o.id)}
+                                className={cx(
+                                    "flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs font-semibold outline-focus-ring focus-visible:outline-2",
+                                    isCorrect ? "bg-success-secondary text-success-primary" : "text-fg-quaternary hover:bg-primary_hover hover:text-fg-success-primary",
+                                )}
+                            >
+                                <CheckCircle className="size-4" aria-hidden="true" />
+                                <span className={cx(!isCorrect && "sr-only @xl/survey:not-sr-only")}>{isCorrect ? "Correct" : "Mark correct"}</span>
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            aria-label={`Remove option ${i + 1}`}
+                            disabled={options.length <= 1}
+                            onClick={() => remove(i)}
+                            className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-fg-quaternary opacity-0 outline-focus-ring group-focus-within/option:opacity-100 group-hover/option:opacity-100 hover:bg-primary_hover focus-visible:opacity-100 focus-visible:outline-2 disabled:hidden"
+                        >
+                            <XClose className="size-4" />
+                        </button>
+                    </div>
+                );
+            })}
             <button
                 type="button"
                 onClick={() => insertAfter(options.length - 1)}
@@ -184,6 +232,17 @@ export const OptionsEditor = ({ options, onChange, label, autoFocusFirstEmpty, s
                 <Plus className="size-4" aria-hidden="true" />
                 {addLabel}
             </button>
+            {correct !== undefined && (
+                <p className={cx("text-sm", correct.length ? "text-tertiary" : "font-medium text-warning-primary")}>
+                    {correct.length === 0
+                        ? multipleCorrect
+                            ? "Mark every correct answer. Participants need all of them, and no others."
+                            : "Mark the correct answer."
+                        : multipleCorrect
+                          ? `${correct.length} correct ${correct.length === 1 ? "answer" : "answers"}. Participants need all of them, and no others.`
+                          : "Participants who pick this answer score a point."}
+                </p>
+            )}
         </div>
     );
 };

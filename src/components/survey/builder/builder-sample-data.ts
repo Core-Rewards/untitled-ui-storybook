@@ -1,3 +1,4 @@
+import { getFungicideQuiz } from "../quiz-sample-data";
 import { getSatisfactionSurvey } from "../survey-sample-data";
 import type { Survey, SurveyQuestion } from "../survey-types";
 import { extractStrings } from "./builder-model";
@@ -18,6 +19,21 @@ export const getBuilderTranslations = (): Translations => {
     const missing = new Set(["q3.title", "q4.title", "q4.description", "q4.option.promotions", "q4.option.arcade", "q4.option.reports"]);
     return Object.fromEntries(en.filter((s) => !missing.has(s.key) && byKey.has(s.key)).map((s) => [s.key, byKey.get(s.key)!]));
 };
+
+// ─── Quiz ────────────────────────────────────────────────────────────────────
+
+/**
+ * A draft quiz for the builder: the sample fungicide quiz, opening next week, with
+ * Q5's right answer not picked yet so the outline warns and the checklist blocks Publish.
+ */
+export const getBuilderQuiz = (): Survey => {
+    const quiz = getFungicideQuiz("en", { status: "draft", opensAt: "2026-12-14T09:00:00-05:00", closesAt: "2026-12-31T23:30:00-05:00" });
+    return { ...quiz, questions: quiz.questions.map((q) => (q.id === "k5" ? { ...q, correct: [] } : q)) };
+};
+
+/** French for the builder quiz, complete, so the missing answer is the only blocker. */
+export const getBuilderQuizTranslations = (): Translations =>
+    Object.fromEntries(extractStrings(getFungicideQuiz("fr")).map((s) => [s.key, s.text]));
 
 // ─── Question bank ───────────────────────────────────────────────────────────
 

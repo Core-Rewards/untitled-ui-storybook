@@ -3,7 +3,9 @@ import { Button } from "@/components/base/buttons/button";
 import { cx } from "@/utils/cx";
 import { useShortcutKeys } from "../questions/question-keys";
 import { useSurveyCopy } from "../survey-context";
+import { isQuiz } from "../quiz-logic";
 import { countAnswerable, estimateMinutes } from "../survey-logic";
+import { rewardText } from "./activity-logic";
 import type { Survey } from "../survey-types";
 import { RewardBadge } from "./reward-badge";
 import { SurveyTakeover } from "./survey-takeover";
@@ -20,7 +22,9 @@ export interface SurveyIntroProps {
 export const SurveyIntro = ({ survey, onStart, onClose, shortcuts = true }: SurveyIntroProps) => {
     const { copy } = useSurveyCopy();
     const { intro, reward, anonymity, questions } = survey;
-    const anonymous = anonymity === "anonymous";
+    const quiz = isQuiz(survey);
+    // Quizzes are always identified: the score decides the reward.
+    const anonymous = anonymity === "anonymous" && !quiz;
     const PrivacyIcon = anonymous ? Lock01 : LockUnlocked01;
 
     useShortcutKeys(shortcuts, (key) => {
@@ -29,7 +33,14 @@ export const SurveyIntro = ({ survey, onStart, onClose, shortcuts = true }: Surv
         return true;
     });
 
-    const chips = [copy.minutes(estimateMinutes(questions)), copy.questions(countAnswerable(questions)), copy.savesAsYouGo];
+    const chips = quiz
+        ? [copy.questions(countAnswerable(questions)), copy.passMark(survey.quiz?.passMark ?? 80), copy.oneTry, copy.savesAsYouGo]
+        : [copy.minutes(estimateMinutes(questions)), copy.questions(countAnswerable(questions)), copy.savesAsYouGo];
+    const privacy = quiz
+        ? { title: copy.quizPrivacyTitle, body: copy.quizPrivacyBody }
+        : anonymous
+          ? { title: copy.anonymousTitle, body: copy.anonymousBody }
+          : { title: copy.identifiedTitle, body: copy.identifiedBody };
 
     return (
         <SurveyTakeover
@@ -56,7 +67,7 @@ export const SurveyIntro = ({ survey, onStart, onClose, shortcuts = true }: Surv
                 )}
 
                 <div className="flex flex-1 flex-col items-start gap-5">
-                    {reward && <RewardBadge reward={reward} />}
+                    {reward && <RewardBadge reward={reward} label={rewardText(survey, copy)} />}
                     <div className="flex flex-col gap-3">
                         <h1 className="text-display-sm font-semibold text-primary @3xl/takeover:text-display-md">{intro.title}</h1>
                         <p className="text-lg text-tertiary">{intro.body}</p>
@@ -73,8 +84,7 @@ export const SurveyIntro = ({ survey, onStart, onClose, shortcuts = true }: Surv
                     <div className="flex w-full gap-3 rounded-xl p-4 ring-1 ring-secondary ring-inset @3xl/takeover:p-0 @3xl/takeover:ring-0">
                         <PrivacyIcon className="mt-0.5 size-5 shrink-0 text-fg-quaternary" aria-hidden="true" />
                         <p className="text-sm text-tertiary">
-                            <strong className="font-semibold text-secondary">{anonymous ? copy.anonymousTitle : copy.identifiedTitle}</strong>{" "}
-                            {anonymous ? copy.anonymousBody : copy.identifiedBody}
+                            <strong className="font-semibold text-secondary">{privacy.title}</strong> {privacy.body}
                         </p>
                     </div>
 

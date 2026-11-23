@@ -11,8 +11,16 @@ import { cx } from "@/utils/cx";
 import { statusBadge } from "../admin/admin-format";
 import { SurveyPlayer } from "../participant/survey-player";
 import { SurveyQuestion } from "../questions/survey-question";
+import { isQuiz, quizRewardFor, scoreQuiz } from "../quiz-logic";
 import { SurveyLocaleProvider } from "../survey-locale-provider";
-import type { Survey, SurveyQuestion as SurveyQuestionData, SurveyQuestionType, SurveyRewardType } from "../survey-types";
+import type {
+    Survey,
+    SurveyQuestion as SurveyQuestionData,
+    SurveyQuestionType,
+    SurveyResponse,
+    SurveyRewardType,
+    SurveySubmitResult,
+} from "../survey-types";
 import { AddQuestionPicker } from "./add-question-picker";
 import type { BankQuestion } from "./builder-sample-data";
 import {
@@ -80,11 +88,15 @@ export interface SurveyBuilderProps {
 
 type Snapshot = { survey: Survey; translations: Translations; selectedId: OutlineSelection };
 
-/** Copies a question with fresh ids so it can sit next to the original. */
+/** Copies a question with fresh ids so it can sit next to the original. The correct answer follows its options. */
 const cloneQuestion = (q: SurveyQuestionData, id: string): SurveyQuestionData => {
     const copy = structuredClone(q) as SurveyQuestionData;
     copy.id = id;
-    if ("options" in copy) copy.options = copy.options.map((o) => ({ ...o, id: newOptionId() }));
+    if ("options" in copy) {
+        const ids = new Map(copy.options.map((o) => [o.id, newOptionId()]));
+        copy.options = copy.options.map((o) => ({ ...o, id: ids.get(o.id)! }));
+        if (copy.correct) copy.correct = copy.correct.map((c) => ids.get(c) ?? c);
+    }
     if (copy.type === "matrix") {
         copy.rows = copy.rows.map((o) => ({ ...o, id: newOptionId() }));
         copy.columns = copy.columns.map((o) => ({ ...o, id: newOptionId() }));
@@ -151,6 +163,8 @@ export const SurveyBuilder = ({
     const selectedQuestion = survey.questions.find((q) => q.id === selectedId);
     const selectedIndex = selectedQuestion ? survey.questions.indexOf(selectedQuestion) : -1;
     const answerable = survey.questions.filter((q) => q.type !== "statement").length;
+    const quiz = isQuiz(survey);
+    const noun = quiz ? "quiz" : "survey";
 
     /** Apply an edit: remember the previous state for Undo, then autosave. */
     /** Groups rapid edits to the same question (typing) into one Undo step. */
@@ -216,7 +230,7 @@ export const SurveyBuilder = ({
         setToast({ id: Date.now(), message: `Question ${index + 1} added`, undo: true });
     };
 
-    const addType = (type: SurveyQuestionType) => insert(createQuestion(type, newQuestionId(survey), programName), picker.index);
+    const addType = (type: SurveyQuestionType) => insert(createQuestion(type, newQuestionId(survey), programName, survey.kind), picker.index);
 
     const addFromBank = (item: BankQuestion) => {
         const id = newQuestionId(survey);
@@ -247,7 +261,7 @@ export const SurveyBuilder = ({
     };
 
     const requestType = (q: SurveyQuestionData, type: SurveyQuestionType) => {
-        const { question: next, dropped } = changeQuestionType(q, type, programName);
+        const { question: next, dropped } = changeQuestionType(q, type, programName, survey.kind);
         if (dropped.length) setPendingType({ question: q, next: { ...next, logic: undefined }, dropped });
         else updateQuestion({ ...next, logic: q.logic });
     };
@@ -357,7 +371,7 @@ export const SurveyBuilder = ({
                                     color="tertiary"
                                     size="md"
                                     iconLeading={Plus}
-                                    aria-label={`Also offer this survey in ${LANGUAGE_NAMES[otherLocale(survey.locale)]}`}
+                                    aria-label={`Also offer this ${noun} in ${LANGUAGE_NAMES[otherLocale(survey.locale)]}`}
                                     onClick={() => {
                                         commit(setSecondLocale(survey, true));
                                         setView("translate");
@@ -378,7 +392,7 @@ export const SurveyBuilder = ({
                     </div>
 
                     <ProgressSteps
-                        aria-label="Survey setup"
+                        aria-label={quiz ? "Quiz setup" : "Survey setup"}
                         steps={STEPS.map((s) => ({ id: s.id, label: s.label, status: stepStatus(s.id) }))}
                         onSelect={(id) => goTo(id as BuilderStep)}
                         className="pb-3"
@@ -391,7 +405,7 @@ export const SurveyBuilder = ({
                         <aside aria-label="Outline" className="min-h-0 overflow-y-auto border-secondary bg-primary p-4 lg:border-r">
                             {answerable > 10 && (
                                 <p className="mb-3 rounded-lg bg-secondary px-3 py-2 text-xs text-tertiary">
-                                    {answerable} questions. Surveys over 10 questions usually get fewer completions.
+                                    {answerable} questions. {quiz ? "Quizzes" : "Surveys"} over 10 questions usually get fewer completions.
                                 </p>
                             )}
                             <QuestionOutline
@@ -457,7 +471,7 @@ export const SurveyBuilder = ({
                                             number={survey.questions.slice(0, selectedIndex + 1).filter((q) => q.type !== "statement").length}
                                             value={undefined}
                                             onChange={() => {}}
-                                            editor={{ onChange: updateQuestion, autoFocus: justAdded === selectedQuestion.id }}
+                                            editor={{ onChange: updateQuestion, autoFocus: justAdded === selectedQuestion.id, quiz }}
                                         />
                                     </>
                                 )}
@@ -500,6 +514,7 @@ export const SurveyBuilder = ({
                                     <div role="tabpanel" className="min-h-0 flex-1 overflow-y-auto p-5">
                                         {panelTab === "settings" ? (
                                             <QuestionSettings
+                                                kind={survey.kind}
                                                 question={selectedQuestion}
                                                 onChange={updateQuestion}
                                                 onTypeChange={(type) => requestType(selectedQuestion, type)}
@@ -523,7 +538,9 @@ export const SurveyBuilder = ({
                                     <p className="text-sm text-tertiary">
                                         {selectedId === "intro"
                                             ? "The intro's title, text and image are set in step 2, Settings. Time and question count are calculated for you."
-                                            : "The thank-you message and where its button goes are set in step 2, Settings. The reward comes from step 3."}
+                                            : quiz
+                                              ? "Participants see their score here, with the reward for it and, if you choose, the right answers. The message and button are set in step 2, Settings; the reward rule in step 3."
+                                              : "The thank-you message and where its button goes are set in step 2, Settings. The reward comes from step 3."}
                                     </p>
                                     <Button color="secondary" size="sm" onClick={() => goTo("settings")} className="self-start">
                                         Go to Settings
@@ -620,6 +637,7 @@ export const SurveyBuilder = ({
                 triggerRef={pickerAnchor}
                 onPickType={addType}
                 onPickBank={addFromBank}
+                quiz={isQuiz(survey)}
             />
 
             {toast && (
@@ -689,6 +707,12 @@ const TypeChangeDialog = ({
 
 /** Preview: the real participant flow in a desktop or phone frame. Test answers are never saved or paid. */
 const PreviewOverlay = ({ isOpen, onClose, survey }: { isOpen: boolean; onClose: () => void; survey: Survey }) => {
+    // Quizzes are graded here like the platform would, so the results screen shows the real score and reward.
+    const submitTest = async (response: SurveyResponse): Promise<SurveySubmitResult> => {
+        if (!isQuiz(survey)) return { reward: survey.reward };
+        const score = scoreQuiz(survey, response.answers);
+        return { reward: quizRewardFor(survey, score), score };
+    };
     const [frame, setFrame] = useState<"desktop" | "mobile">("mobile");
     const now = new Date();
     const testable: Survey = {
@@ -700,7 +724,7 @@ const PreviewOverlay = ({ isOpen, onClose, survey }: { isOpen: boolean; onClose:
     return (
         <ModalOverlay isOpen={isOpen} onOpenChange={(open) => !open && onClose()} isDismissable className="p-0 sm:p-4">
             <Modal className="h-full max-w-none">
-                <Dialog aria-label="Preview survey" className="h-full">
+                <Dialog aria-label={isQuiz(survey) ? "Preview quiz" : "Preview survey"} className="h-full">
                     <div className="flex h-full w-full flex-col overflow-hidden rounded-2xl bg-secondary_subtle shadow-xl">
                         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-secondary bg-primary px-5 py-3">
                             <div className="flex items-center gap-3">
@@ -742,7 +766,7 @@ const PreviewOverlay = ({ isOpen, onClose, survey }: { isOpen: boolean; onClose:
                                     key={frame}
                                     survey={testable}
                                     response={{ surveyId: survey.id, status: "not_started", locale: survey.locale, answers: {}, history: [], isTest: true }}
-                                    onSubmit={async () => ({ reward: survey.reward })}
+                                    onSubmit={submitTest}
                                     onExit={onClose}
                                     onNavigate={onClose}
                                 />

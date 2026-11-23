@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { ArrowLeft, Copy06, File06, SearchLg } from "@untitledui/icons";
+import { ArrowLeft, ClipboardCheck, Copy06, File06, GraduationHat01, SearchLg } from "@untitledui/icons";
 import { Radio, RadioGroup } from "react-aria-components";
 import { Badge } from "@/components/base/badges/badge";
 import { Button } from "@/components/base/buttons/button";
@@ -8,7 +8,7 @@ import { Input } from "@/components/base/input/input";
 import { RadioButtonBase } from "@/components/base/radio-buttons/radio-buttons";
 import { FeaturedIcon } from "@/components/foundations/featured-icon/featured-icon";
 import { cx } from "@/utils/cx";
-import type { SurveyLocale } from "../survey-types";
+import type { SurveyKind, SurveyLocale } from "../survey-types";
 import { SettingToggle } from "../builder/settings-fields";
 import { formatDateRange, statusBadge } from "./admin-format";
 import type { NewSurveyRequest, SurveyListItem, SurveyTemplate } from "./admin-types";
@@ -24,9 +24,23 @@ export interface NewSurveyPageProps {
     onCreate: (request: NewSurveyRequest) => void;
     /** Back to the survey list. */
     onCancel: () => void;
-    /** Pre-select a starting point, e.g. `template:tpl-program-satisfaction` from the list's empty state. */
+    /** Pre-select a starting point, e.g. `template:tpl-program-satisfaction` from the list's empty state. Its kind wins over `defaultKind`. */
     defaultSelection?: NewSurveySelection;
+    /** Survey (default) or quiz. */
+    defaultKind?: SurveyKind;
 }
+
+const KINDS: { id: SurveyKind; title: string; body: string; icon: typeof File06 }[] = [
+    { id: "survey", title: "Survey", body: "Collect opinions and feedback. There are no wrong answers.", icon: ClipboardCheck },
+    {
+        id: "quiz",
+        title: "Quiz",
+        body: "Test what people know. Questions have right answers, and each person gets a score and one try.",
+        icon: GraduationHat01,
+    },
+];
+
+const kindOf = (item?: { kind?: SurveyKind }) => item?.kind ?? "survey";
 
 const parse = (selection: NewSurveySelection) => {
     const [kind, id] = selection.split(":");
@@ -35,12 +49,26 @@ const parse = (selection: NewSurveySelection) => {
 
 /**
  * New survey (A2), as a page in the admin shell. It merges the template library:
- * start blank, pick a Core Rewards template (searchable, by category, with a
- * question preview), or copy a survey this program has run. The right panel names
- * the survey and sets its base language; Create survey opens the builder.
+ * choose a survey or a quiz, then start blank, pick a Core Rewards template
+ * (searchable, by category, with a question preview), or copy one this program has
+ * run. Templates and copies follow the kind. The right panel names it and sets its
+ * base language; Create opens the builder.
  */
-export const NewSurveyPage = ({ templates, surveys, onCreate, onCancel, defaultSelection }: NewSurveyPageProps) => {
-    const ordered = useMemo(() => [...templates].sort((a, b) => Number(!!b.isStarter) - Number(!!a.isStarter)), [templates]);
+export const NewSurveyPage = ({ templates, surveys, onCreate, onCancel, defaultSelection, defaultKind }: NewSurveyPageProps) => {
+    const [kind, setKind] = useState<SurveyKind>(() => {
+        if (defaultSelection) {
+            const start = parse(defaultSelection);
+            const item = start.kind === "template" ? templates.find((t) => t.id === start.id) : surveys.find((s) => s.id === start.id);
+            if (item) return kindOf(item);
+        }
+        return defaultKind ?? "survey";
+    });
+    const noun = kind === "quiz" ? "quiz" : "survey";
+    const Noun = kind === "quiz" ? "Quiz" : "Survey";
+    const ordered = useMemo(
+        () => templates.filter((t) => kindOf(t) === kind).sort((a, b) => Number(!!b.isStarter) - Number(!!a.isStarter)),
+        [templates, kind],
+    );
     const [selection, setSelection] = useState<NewSurveySelection>(defaultSelection ?? (ordered[0] ? `template:${ordered[0].id}` : "blank"));
     const [query, setQuery] = useState("");
     const [category, setCategory] = useState("All");
@@ -49,17 +77,17 @@ export const NewSurveyPage = ({ templates, surveys, onCreate, onCancel, defaultS
     /** Undefined until the admin chooses; until then it follows the starting point. */
     const [bilingualChoice, setBilingualChoice] = useState<boolean>();
 
-    const categories = useMemo(() => ["All", ...Array.from(new Set(templates.map((t) => t.category)))], [templates]);
+    const categories = useMemo(() => ["All", ...Array.from(new Set(ordered.map((t) => t.category)))], [ordered]);
     const shownTemplates = ordered.filter(
         (t) =>
             (category === "All" || t.category === category) &&
             (!query.trim() || `${t.title} ${t.description} ${t.category}`.toLowerCase().includes(query.trim().toLowerCase())),
     );
-    const copyable = surveys.filter((s) => s.status !== "archived");
+    const copyable = surveys.filter((s) => s.status !== "archived" && kindOf(s) === kind);
 
-    const { kind, id } = parse(selection);
-    const template = kind === "template" ? templates.find((t) => t.id === id) : undefined;
-    const original = kind === "duplicate" ? surveys.find((s) => s.id === id) : undefined;
+    const { kind: source, id } = parse(selection);
+    const template = source === "template" ? ordered.find((t) => t.id === id) : undefined;
+    const original = source === "duplicate" ? copyable.find((s) => s.id === id) : undefined;
     // Suggest a name from the starting point until the admin types their own.
     const suggestedName = template?.title ?? (original ? `Copy of ${original.title}` : "");
     const shownName = name ?? suggestedName;
@@ -67,12 +95,22 @@ export const NewSurveyPage = ({ templates, surveys, onCreate, onCancel, defaultS
     const startsBilingual = template ? template.hasFrench : original ? original.locales.length > 1 : false;
     const bilingual = bilingualChoice ?? startsBilingual;
     const otherName = baseLocale === "en" ? "French" : "English";
-    const canCreate = shownName.trim().length > 0 && (kind === "blank" || !!template || !!original);
+    const canCreate = shownName.trim().length > 0 && (source === "blank" || !!template || !!original);
+
+    /** Switching kind keeps the name and languages, and moves the selection to that kind's first template (or blank). */
+    const changeKind = (next: SurveyKind) => {
+        if (next === kind) return;
+        setKind(next);
+        setCategory("All");
+        const first = templates.filter((t) => kindOf(t) === next).sort((a, b) => Number(!!b.isStarter) - Number(!!a.isStarter))[0];
+        setSelection(first ? `template:${first.id}` : "blank");
+    };
 
     const create = () => {
         if (!canCreate) return;
         onCreate({
-            source: kind,
+            kind,
+            source,
             templateId: template?.id,
             duplicateOfId: original?.id,
             name: shownName.trim(),
@@ -102,27 +140,49 @@ export const NewSurveyPage = ({ templates, surveys, onCreate, onCancel, defaultS
                             /
                         </li>
                         <li aria-current="page" className="font-semibold text-brand-secondary">
-                            New survey
+                            New {noun}
                         </li>
                     </ol>
                 </nav>
                 <div className="flex flex-col gap-1">
-                    <h1 className="text-display-xs font-semibold text-primary">New survey</h1>
-                    <p className="text-md text-tertiary">Start blank, from a Core Rewards template, or from a survey you've run before.</p>
+                    <h1 className="text-display-xs font-semibold text-primary">New {noun}</h1>
+                    <p className="text-md text-tertiary">Start blank, from a Core Rewards template, or from a {noun} you've run before.</p>
                 </div>
             </header>
 
             <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
                 <div className="flex min-w-0 flex-col gap-10">
+                    {/* Kind: fixed once created */}
+                    <Section title="What are you making?" description="You can't switch between a survey and a quiz later.">
+                        <RadioGroup
+                            aria-label="Survey or quiz"
+                            value={kind}
+                            onChange={(v) => changeKind(v as SurveyKind)}
+                            className="grid gap-3 sm:grid-cols-2"
+                        >
+                            {KINDS.map((k) => (
+                                <OptionCard key={k.id} value={k.id} className="flex-row items-center">
+                                    <FeaturedIcon icon={k.icon} color={kind === k.id ? "brand" : "gray"} theme="modern" size="md" />
+                                    <span className="flex flex-1 flex-col">
+                                        <span className="text-md font-semibold text-primary">{k.title}</span>
+                                        <span className="text-sm text-tertiary">{k.body}</span>
+                                    </span>
+                                </OptionCard>
+                            ))}
+                        </RadioGroup>
+                    </Section>
+
                     {/* Blank */}
                     <Section title="Start blank">
                         <RadioGroup aria-label="Start blank" value={groupValue("blank")} onChange={setSelection}>
                             <OptionCard value="blank" className="flex-row items-center">
                                 <FeaturedIcon icon={File06} color="gray" theme="modern" size="md" />
                                 <span className="flex flex-1 flex-col">
-                                    <span className="text-md font-semibold text-primary">Blank survey</span>
+                                    <span className="text-md font-semibold text-primary">Blank {noun}</span>
                                     <span className="text-sm text-tertiary">
-                                        An empty survey with an intro and thank-you screen. Add questions in the builder.
+                                        {kind === "quiz"
+                                            ? "An empty quiz with an intro and results screen. Add questions and mark the right answers in the builder."
+                                            : "An empty survey with an intro and thank-you screen. Add questions in the builder."}
                                     </span>
                                 </span>
                             </OptionCard>
@@ -132,7 +192,11 @@ export const NewSurveyPage = ({ templates, surveys, onCreate, onCancel, defaultS
                     {/* Template library */}
                     <Section
                         title="Templates"
-                        description="Written by Core Rewards and reused across programs. Most come with French already written."
+                        description={
+                            kind === "quiz"
+                                ? "Written by Core Rewards. Swap in your own products; the right answers are marked for you to check."
+                                : "Written by Core Rewards and reused across programs. Most come with French already written."
+                        }
                         actions={
                             <Input
                                 aria-label="Search templates"
@@ -196,11 +260,15 @@ export const NewSurveyPage = ({ templates, surveys, onCreate, onCancel, defaultS
                     {/* Duplicate */}
                     {copyable.length > 0 && (
                         <Section
-                            title="Copy a survey you've run"
-                            description="Copies the questions, logic, settings and translations. Responses aren't copied."
+                            title={`Copy a ${noun} you've run`}
+                            description={
+                                kind === "quiz"
+                                    ? "Copies the questions, right answers, logic, settings and translations. Responses and scores aren't copied."
+                                    : "Copies the questions, logic, settings and translations. Responses aren't copied."
+                            }
                         >
                             <RadioGroup
-                                aria-label="Copy a survey"
+                                aria-label={`Copy a ${noun}`}
                                 value={groupValue("duplicate:")}
                                 onChange={setSelection}
                                 className="flex flex-col divide-y divide-secondary overflow-hidden rounded-xl ring-1 ring-secondary ring-inset"
@@ -244,7 +312,7 @@ export const NewSurveyPage = ({ templates, surveys, onCreate, onCancel, defaultS
 
                 {/* Details panel */}
                 <form
-                    aria-label="Survey details"
+                    aria-label={`${Noun} details`}
                     onSubmit={(e) => {
                         e.preventDefault();
                         create();
@@ -253,15 +321,15 @@ export const NewSurveyPage = ({ templates, surveys, onCreate, onCancel, defaultS
                 >
                     <div className="flex flex-col gap-3">
                         <p className="text-xs font-semibold tracking-wide text-quaternary uppercase">Starting from</p>
-                        <SelectionSummary template={template} original={original} />
+                        <SelectionSummary template={template} original={original} noun={noun} />
                     </div>
 
                     <hr className="border-secondary" />
 
                     <Input
-                        label="Survey name"
+                        label={`${Noun} name`}
                         isRequired
-                        placeholder="e.g. 2026 Program Satisfaction"
+                        placeholder={kind === "quiz" ? "e.g. 2027 Fungicide Lineup Quiz" : "e.g. 2026 Program Satisfaction"}
                         value={shownName}
                         onChange={setName}
                         hint="Participants see this on the dashboard card and in the invite email."
@@ -287,7 +355,7 @@ export const NewSurveyPage = ({ templates, surveys, onCreate, onCancel, defaultS
                             ))}
                         </div>
                         <span id="base-language-hint" className="text-sm text-tertiary">
-                            You write the survey in this language.
+                            You write the {noun} in this language.
                         </span>
                     </RadioGroup>
 
@@ -304,7 +372,7 @@ export const NewSurveyPage = ({ templates, surveys, onCreate, onCancel, defaultS
 
                     <div className="flex flex-col gap-2">
                         <Button type="submit" size="lg" isDisabled={!canCreate}>
-                            Create survey
+                            Create {noun}
                         </Button>
                         <Button color="tertiary" size="lg" onClick={onCancel}>
                             Cancel
@@ -352,7 +420,7 @@ const OptionCard = ({ value, className, children }: { value: string; className?:
 );
 
 /** What the chosen starting point contains: a template's questions, the survey being copied, or a blank survey. */
-const SelectionSummary = ({ template, original }: { template?: SurveyTemplate; original?: SurveyListItem }) => {
+const SelectionSummary = ({ template, original, noun }: { template?: SurveyTemplate; original?: SurveyListItem; noun: "survey" | "quiz" }) => {
     if (template) {
         return (
             <div className="flex flex-col gap-3">
@@ -396,8 +464,8 @@ const SelectionSummary = ({ template, original }: { template?: SurveyTemplate; o
         <div className="flex items-center gap-3">
             <FeaturedIcon icon={File06} color="brand" theme="light" size="sm" />
             <div className="flex flex-col">
-                <span className="text-sm font-semibold text-primary">Blank survey</span>
-                <span className="text-xs text-tertiary">Intro and thank-you screens, no questions yet</span>
+                <span className="text-sm font-semibold text-primary">Blank {noun}</span>
+                <span className="text-xs text-tertiary">{noun === "quiz" ? "Intro and results screens" : "Intro and thank-you screens"}, no questions yet</span>
             </div>
         </div>
     );

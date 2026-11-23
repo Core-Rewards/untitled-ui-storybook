@@ -5,6 +5,7 @@ import { Dialog, Popover } from "react-aria-components";
 import { Badge } from "@/components/base/badges/badge";
 import { cx } from "@/utils/cx";
 import { SurveyQuestion } from "../questions/survey-question";
+import { canBeScored } from "../quiz-logic";
 import { sampleQuestions } from "../survey-sample-data";
 import type { SurveyQuestion as SurveyQuestionData, SurveyQuestionType } from "../survey-types";
 import { QUESTION_BANK } from "./builder-sample-data";
@@ -19,6 +20,12 @@ export interface AddQuestionPickerProps {
     onPickType: (type: SurveyQuestionType) => void;
     onPickBank: (item: BankQuestion) => void;
     bank?: BankQuestion[];
+    /**
+     * Quiz mode: each row says whether it will be scored when added. Types that can
+     * be scored are added scored; bank questions are opinion questions, so they're
+     * added unscored and can be switched on in the panel.
+     */
+    quiz?: boolean;
 }
 
 type Tab = "types" | "bank";
@@ -27,9 +34,10 @@ type Tab = "types" | "bank";
  * The add-question popover (A3b): search, types grouped as Choice, Scales, Text and
  * data and Other, and a live preview with a "Best for" note. The Question bank tab
  * lists Core-written questions with French included. Arrows browse, Enter adds,
- * Esc closes.
+ * Esc closes. In a quiz, every row says whether it will be scored, and searching
+ * "scored" lists the types that can be.
  */
-export const AddQuestionPicker = ({ isOpen, onOpenChange, triggerRef, onPickType, onPickBank, bank = QUESTION_BANK }: AddQuestionPickerProps) => (
+export const AddQuestionPicker = ({ isOpen, onOpenChange, triggerRef, onPickType, onPickBank, bank = QUESTION_BANK, quiz = false }: AddQuestionPickerProps) => (
     <Popover
         isOpen={isOpen}
         onOpenChange={onOpenChange}
@@ -45,14 +53,22 @@ export const AddQuestionPicker = ({ isOpen, onOpenChange, triggerRef, onPickType
         }
     >
         <Dialog aria-label="Add a question" className="outline-hidden">
-            <PickerBody onPickType={onPickType} onPickBank={onPickBank} bank={bank} />
+            <PickerBody onPickType={onPickType} onPickBank={onPickBank} bank={bank} quiz={quiz} />
         </Dialog>
     </Popover>
 );
 
 type Row = { kind: "type"; type: SurveyQuestionType } | { kind: "bank"; item: BankQuestion };
 
-const PickerBody = ({ onPickType, onPickBank, bank }: Pick<AddQuestionPickerProps, "onPickType" | "onPickBank"> & { bank: BankQuestion[] }) => {
+/** Will this row be scored once added? Only types added fresh; bank questions arrive unscored. */
+const scoredWhenAdded = (row: Row) => row.kind === "type" && canBeScored(row);
+
+const PickerBody = ({
+    onPickType,
+    onPickBank,
+    bank,
+    quiz,
+}: Pick<AddQuestionPickerProps, "onPickType" | "onPickBank"> & { bank: BankQuestion[]; quiz: boolean }) => {
     const [tab, setTab] = useState<Tab>("types");
     const [query, setQuery] = useState("");
     const [active, setActive] = useState(0);
@@ -65,7 +81,9 @@ const PickerBody = ({ onPickType, onPickBank, bank }: Pick<AddQuestionPickerProp
     const q = query.trim().toLowerCase();
     const rows: Row[] = useMemo(() => {
         if (tab === "types") {
-            return QUESTION_TYPES.filter((t) => !q || `${t.label} ${t.group} ${t.keywords ?? ""}`.toLowerCase().includes(q)).map((t) => ({
+            // In a quiz, "scored" finds the types that can be scored (and only those).
+            const scoreWords = (t: (typeof QUESTION_TYPES)[number]) => (quiz && canBeScored(t) ? " scored quiz right answer correct" : "");
+            return QUESTION_TYPES.filter((t) => !q || `${t.label} ${t.group} ${t.keywords ?? ""}${scoreWords(t)}`.toLowerCase().includes(q)).map((t) => ({
                 kind: "type" as const,
                 type: t.type,
             }));
@@ -73,7 +91,7 @@ const PickerBody = ({ onPickType, onPickBank, bank }: Pick<AddQuestionPickerProp
         return bank
             .filter((b) => !q || `${b.question.title} ${typeInfo(b.question.type).label}`.toLowerCase().includes(q))
             .map((item) => ({ kind: "bank" as const, item }));
-    }, [tab, q, bank]);
+    }, [tab, q, bank, quiz]);
 
     const current = rows[Math.min(active, rows.length - 1)];
     const pick = (row?: Row) => {
@@ -103,6 +121,13 @@ const PickerBody = ({ onPickType, onPickBank, bank }: Pick<AddQuestionPickerProp
     const previewQuestion: SurveyQuestionData | undefined =
         current?.kind === "type" ? sampleQuestions[current.type] : current ? ({ ...current.item.question, id: "preview" } as SurveyQuestionData) : undefined;
     const info = current ? typeInfo(current.kind === "type" ? current.type : current.item.question.type) : undefined;
+    const scoringNote = (() => {
+        if (!quiz || !current || !info) return undefined;
+        if (scoredWhenAdded(current)) return "Scored. Mark the right answer on the canvas after you add it.";
+        if (current.kind === "bank" && canBeScored(info))
+            return "Added unscored, since bank questions ask for opinions. To give it a right answer, turn on Score this question.";
+        return "Not scored. Answers are collected but don't count toward the score.";
+    })();
 
     let lastGroup = "";
 
@@ -134,7 +159,7 @@ const PickerBody = ({ onPickType, onPickBank, bank }: Pick<AddQuestionPickerProp
                 ))}
             </div>
 
-            <div className="border-b border-secondary p-3">
+            <div className="flex flex-col gap-2 border-b border-secondary p-3">
                 <label className="flex items-center gap-2 rounded-lg px-3 py-2 ring-1 ring-primary ring-inset focus-within:ring-2 focus-within:ring-brand">
                     <SearchLg className="size-4 text-fg-quaternary" aria-hidden="true" />
                     <input
@@ -154,6 +179,9 @@ const PickerBody = ({ onPickType, onPickBank, bank }: Pick<AddQuestionPickerProp
                         className="min-w-0 flex-1 bg-transparent text-md text-primary outline-hidden placeholder:text-placeholder"
                     />
                 </label>
+                {quiz && tab === "types" && (
+                    <p className="px-1 text-xs text-tertiary">Multiple choice, Dropdown and Yes / No can be scored. Other types are collected but not scored.</p>
+                )}
             </div>
 
             <div className="grid h-96 grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -169,6 +197,7 @@ const PickerBody = ({ onPickType, onPickBank, bank }: Pick<AddQuestionPickerProp
                         const header = row.kind === "type" && !q && t.group !== lastGroup ? t.group : null;
                         if (header) lastGroup = t.group;
                         const isActive = i === Math.min(active, rows.length - 1);
+                        const scored = quiz && scoredWhenAdded(row);
                         return (
                             <li key={row.kind === "type" ? row.type : row.item.id} role="presentation">
                                 {header && <p className="px-4 pt-3 pb-1 text-xs font-semibold tracking-wide text-quaternary uppercase">{header}</p>}
@@ -190,10 +219,21 @@ const PickerBody = ({ onPickType, onPickBank, bank }: Pick<AddQuestionPickerProp
                                         ) : (
                                             <span className="flex flex-col">
                                                 <span className="font-medium">{row.item.question.title}</span>
-                                                <span className="text-xs text-tertiary">{t.label} · EN and FR</span>
+                                                <span className="text-xs text-tertiary">
+                                                    {t.label} · EN and FR{quiz && " · Not scored"}
+                                                </span>
                                             </span>
                                         )}
                                     </span>
+                                    {quiz &&
+                                        row.kind === "type" &&
+                                        (scored ? (
+                                            <Badge size="sm" color="success">
+                                                Scored
+                                            </Badge>
+                                        ) : (
+                                            <span className="shrink-0 text-xs text-quaternary">Not scored</span>
+                                        ))}
                                     {isActive && <CornerDownLeft className="size-4 shrink-0 text-fg-brand-primary" aria-hidden="true" />}
                                 </div>
                             </li>
@@ -215,6 +255,9 @@ const PickerBody = ({ onPickType, onPickBank, bank }: Pick<AddQuestionPickerProp
                             {info.bestFor}
                             {current?.kind === "bank" && " French is already written."}
                         </p>
+                    )}
+                    {scoringNote && (
+                        <p className={cx("text-sm", current && scoredWhenAdded(current) ? "text-success-primary" : "text-tertiary")}>{scoringNote}</p>
                     )}
                 </div>
             </div>
