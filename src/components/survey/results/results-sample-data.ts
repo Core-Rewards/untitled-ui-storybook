@@ -7,7 +7,7 @@ import type { ResultResponse } from "./results-types";
  * by 398 people, Q2 answered by the 41 who rated 1 or 2. Same output every time.
  */
 
-const mulberry32 = (seed: number) => () => {
+export const mulberry32 = (seed: number) => () => {
     seed |= 0;
     seed = (seed + 0x6d2b79f5) | 0;
     let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
@@ -15,7 +15,7 @@ const mulberry32 = (seed: number) => () => {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 };
 
-const shuffle = <T>(items: T[], rand: () => number) => {
+export const shuffle = <T>(items: T[], rand: () => number) => {
     const a = [...items];
     for (let i = a.length - 1; i > 0; i--) {
         const j = Math.floor(rand() * (i + 1));
@@ -102,6 +102,14 @@ const LAST = [
 const REGIONS = ["Ontario", "Quebec", "Prairies", "British Columbia", "Atlantic"];
 const ROLES = ["Crop advisor", "Retail manager", "Sales rep", "Agronomist"];
 
+/** A made-up identified participant. */
+export const randomParticipant = (rand: () => number): NonNullable<ResultResponse["participant"]> => ({
+    name: `${FIRST[Math.floor(rand() * FIRST.length)]} ${LAST[Math.floor(rand() * LAST.length)]}`,
+    account: `AA-${String(100000 + Math.floor(rand() * 899999))}`,
+    region: REGIONS[Math.floor(rand() * REGIONS.length)],
+    role: ROLES[Math.floor(rand() * ROLES.length)],
+});
+
 const FEATURES = ["earn", "redeem", "promotions", "arcade", "reports"] as const;
 
 export interface GenerateOptions {
@@ -177,14 +185,7 @@ export const generateSatisfactionResults = ({
     for (let i = 0; i < COMPLETE + PARTIAL; i++) {
         const locale = locales[i];
         const startedAt = new Date(start + Math.floor((slots[i] / (COMPLETE + PARTIAL)) * span + rand() * 3_600_000)).toISOString();
-        const participant = identified
-            ? {
-                  name: `${FIRST[Math.floor(rand() * FIRST.length)]} ${LAST[Math.floor(rand() * LAST.length)]}`,
-                  account: `AA-${String(100000 + Math.floor(rand() * 899999))}`,
-                  region: REGIONS[Math.floor(rand() * REGIONS.length)],
-                  role: ROLES[Math.floor(rand() * ROLES.length)],
-              }
-            : undefined;
+        const participant = identified ? randomParticipant(rand) : undefined;
 
         if (i < COMPLETE) {
             const answers: SurveyAnswers = { q1: q1[i], q3: nps[i] };

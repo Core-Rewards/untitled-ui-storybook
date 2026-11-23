@@ -1,3 +1,4 @@
+import { getFungicideQuiz } from "../quiz-sample-data";
 import { getSatisfactionSurvey, inProgressResponse } from "../survey-sample-data";
 import type { Survey, SurveyQuestion } from "../survey-types";
 import type { ActivityItem } from "./activity-logic";
@@ -7,12 +8,14 @@ import type { ActivityItem } from "./activity-logic";
  * and the dashboard stories. Pair with STORY_NOW (Nov 20, 2026).
  */
 
-const mcq = (id: string, title: string, options: string[]): SurveyQuestion => ({
+/** A scored single-choice question. `answer` is the index of the right option. */
+const mcq = (id: string, title: string, options: string[], answer = 0): SurveyQuestion => ({
     id,
     type: "multiple_choice",
     title,
     required: true,
     options: options.map((label, i) => ({ id: `${id}-${i}`, label })),
+    correct: [`${id}-${answer}`],
 });
 
 const base = getSatisfactionSurvey("en");
@@ -24,12 +27,12 @@ const quiz = (overrides: Partial<Survey>): Survey => ({
     intro: { title: overrides.title ?? "Quiz", body: "Check what you know. You get one try." },
     card: { enabled: true, headline: overrides.title ?? "Quiz", body: "Check what you know. You get one try." },
     questions: [
-        mcq("k1", "Which product is labelled for early blight?", ["Product A", "Product B", "Product C"]),
-        mcq("k2", "What's the re-entry interval?", ["4 hours", "12 hours", "24 hours"]),
-        mcq("k3", "Which crop is it not registered for?", ["Potatoes", "Wheat", "Canola"]),
-        mcq("k4", "How many applications per season?", ["1", "2", "3"]),
-        mcq("k5", "What's the pre-harvest interval for potatoes?", ["1 day", "7 days", "14 days"]),
-        mcq("k6", "Which tank-mix partner is recommended?", ["Partner X", "Partner Y", "None"]),
+        mcq("k1", "Which product is labelled for early blight?", ["Product A", "Product B", "Product C"], 1),
+        mcq("k2", "What's the re-entry interval?", ["4 hours", "12 hours", "24 hours"], 1),
+        mcq("k3", "Which crop is it not registered for?", ["Potatoes", "Wheat", "Canola"], 2),
+        mcq("k4", "How many applications per season?", ["1", "2", "3"], 1),
+        mcq("k5", "What's the pre-harvest interval for potatoes?", ["1 day", "7 days", "14 days"], 1),
+        mcq("k6", "Which tank-mix partner is recommended?", ["Partner X", "Partner Y", "None"], 2),
     ],
     ...overrides,
 });
@@ -40,16 +43,9 @@ const satisfaction: ActivityItem = {
     response: inProgressResponse("en"),
 };
 
-/** Live quiz paying only on a pass. */
+/** Live quiz paying only on a pass. The full sample quiz, with right answers and explanations. */
 const fungicideQuiz: ActivityItem = {
-    survey: quiz({
-        id: "quiz-fungicides-2027",
-        title: "2027 Fungicide Lineup Quiz",
-        opensAt: "2026-11-16T09:00:00-05:00",
-        closesAt: "2026-12-04T23:59:00-05:00",
-        reward: { type: "points", amount: 250 },
-        quiz: { passMark: 80, rewardRule: "pass" },
-    }),
+    survey: getFungicideQuiz("en", { card: { enabled: true, headline: "2027 Fungicide Lineup Quiz", body: "Check what you know. You get one try." } }),
 };
 
 /** Live tiered quiz, closes later. */
@@ -70,8 +66,8 @@ const seedQuiz: ActivityItem = {
             ],
         },
         questions: [
-            mcq("s1", "When should seed treatment be applied?", ["Before planting", "At emergence"]),
-            mcq("s2", "What does it protect against?", ["Seed rot", "Hail"]),
+            mcq("s1", "When should seed treatment be applied?", ["Before planting", "At emergence"], 0),
+            mcq("s2", "What does it protect against?", ["Seed rot", "Hail"], 0),
         ],
     }),
 };

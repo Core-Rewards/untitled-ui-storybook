@@ -1,6 +1,6 @@
 import type { BadgeColor } from "@/components/base/badges/badge";
 import type { SurveyReward, SurveyStatus } from "../survey-types";
-import type { SurveyRowAction } from "./admin-types";
+import type { SurveyListItem, SurveyRowAction } from "./admin-types";
 
 /** Status pill colour and label. Every pill also has a dot and a word, so status is never colour alone. */
 export const statusBadge: Record<SurveyStatus, { label: string; color: BadgeColor }> = {
@@ -27,6 +27,14 @@ export const formatReward = (reward?: SurveyReward) => {
     if (reward.type === "points") return `${n} ${one ? "point" : "points"}`;
     if (reward.type === "sweepstakes") return `${n} sweepstakes ${one ? "entry" : "entries"}`;
     return `${n} arcade ${one ? "spin" : "spins"}`;
+};
+
+/** The list's reward cell: "500 points", or for quizzes "Pass: 250 points" / "Up to 500 points". */
+export const formatListReward = (item: Pick<SurveyListItem, "kind" | "reward" | "quizRewardRule">) => {
+    if (!item.reward || item.kind !== "quiz") return formatReward(item.reward);
+    if (item.quizRewardRule === "pass") return `Pass: ${formatReward(item.reward)}`;
+    if (item.quizRewardRule === "tiered") return `Up to ${formatReward(item.reward)}`;
+    return formatReward(item.reward);
 };
 
 /** "just now", "2 hours ago", "3 days ago", then the date. */

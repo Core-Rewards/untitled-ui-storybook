@@ -32,6 +32,12 @@ export interface SurveyQuestionScreenProps {
     isSubmitting?: boolean;
     /** Keyboard shortcuts (letters, numbers, Enter, arrows). */
     shortcuts?: boolean;
+    /** Quizzes that reveal each answer: the button checks the answer first, and nothing auto-advances. */
+    checkFirst?: boolean;
+    /** Quizzes: this question's answer has been checked, so show it marked and locked. */
+    revealed?: boolean;
+    /** Accessible name for the progress bar, e.g. "Quiz progress". */
+    progressLabel?: string;
 }
 
 /** One question in the focused takeover, with Next pinned on phones and OK + hints on desktop. */
@@ -54,12 +60,17 @@ export const SurveyQuestionScreen = ({
     isLast,
     isSubmitting,
     shortcuts = true,
+    checkFirst = false,
+    revealed = false,
+    progressLabel,
 }: SurveyQuestionScreenProps) => {
     const { copy } = useSurveyCopy();
-    const auto = autoAdvances(question) && !isLast;
+    // A question waiting to be checked, or showing its result, waits for the button.
+    const checking = checkFirst && !revealed;
+    const auto = autoAdvances(question) && !isLast && !checkFirst;
     const isStatement = question.type === "statement";
     const isScale = question.type === "nps" || question.type === "opinion_scale" || question.type === "rating";
-    const nextLabel = isStatement ? (question.buttonLabel ?? copy.next) : isLast ? copy.submit : copy.next;
+    const nextLabel = isStatement ? (question.buttonLabel ?? copy.next) : checking ? copy.checkAnswer : isLast ? copy.submit : copy.next;
 
     useShortcutKeys(shortcuts && !isSubmitting, (key) => {
         if (key === "Enter") onNext();
@@ -70,7 +81,13 @@ export const SurveyQuestionScreen = ({
     });
 
     const letterCount = question.type === "multiple_choice" ? question.options.length + (question.allowOther ? 1 : 0) : question.type === "yes_no" ? 2 : 0;
-    const desktopHint = isScale ? copy.typeNumber : letterCount > 0 ? copy.typeLetters(String.fromCharCode(64 + letterCount)) : undefined;
+    const desktopHint = revealed
+        ? undefined
+        : isScale
+          ? copy.typeNumber
+          : letterCount > 0
+            ? copy.typeLetters(String.fromCharCode(64 + letterCount))
+            : undefined;
 
     // Desktop says "OK" like the wireframes; phones say "Next". Both say "Submit" on the last step.
     const nextButton = (className?: string, desktop = false) => (
@@ -80,9 +97,9 @@ export const SurveyQuestionScreen = ({
             onClick={onNext}
             isLoading={isSubmitting}
             showTextWhileLoading
-            iconTrailing={isLast || isStatement ? undefined : Check}
+            iconTrailing={isLast || isStatement || checking ? undefined : Check}
         >
-            {isSubmitting ? copy.submitting : desktop && !isLast && !isStatement ? copy.ok : nextLabel}
+            {isSubmitting ? copy.submitting : desktop && !isLast && !isStatement && !checking ? copy.ok : nextLabel}
         </Button>
     );
 
@@ -107,6 +124,7 @@ export const SurveyQuestionScreen = ({
         <SurveyTakeover
             surveyTitle={surveyTitle}
             progress={progress}
+            progressLabel={progressLabel}
             position={{ current: number, total }}
             onBack={onBack}
             onExit={onExit}
@@ -125,7 +143,8 @@ export const SurveyQuestionScreen = ({
                     onChange={onChange}
                     onCommit={onCommit}
                     message={message}
-                    shortcuts={shortcuts && !isSubmitting}
+                    shortcuts={shortcuts && !isSubmitting && !revealed}
+                    revealed={revealed}
                     autoFocusTitle
                 />
 

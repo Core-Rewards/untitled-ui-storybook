@@ -84,6 +84,37 @@ export interface SurveyCopy {
     scoreLine: (correct: number, total: number, passed: boolean) => string;
     earned: (reward: SurveyReward) => string;
     noRewardEarned: string;
+    // Taking a quiz
+    quizProgressLabel: string;
+    passMark: (percent: number) => string;
+    oneTry: string;
+    quizPrivacyTitle: string;
+    quizPrivacyBody: string;
+    checkAnswer: string;
+    correct: string;
+    notQuite: string;
+    /** "The correct answer is 12 hours." / "The correct answers are Wheat and Barley." */
+    correctAnswerIs: (labels: string[]) => string;
+    yourAnswer: string;
+    correctAnswer: string;
+    notAnswered: string;
+    // Quiz results
+    youScored: (correct: number, total: number) => string;
+    passed: string;
+    notPassed: string;
+    /** Pass rule, not passed: "You needed 80% to earn 250 points." */
+    neededToEarn: (percent: number, reward: SurveyReward) => string;
+    /** Tiered, no tier reached: "Score 60% or more to earn a reward." */
+    tierNotReached: (percent: number) => string;
+    reviewTitle: string;
+    reviewIntro: (correct: number, total: number) => string;
+    answersHidden: string;
+    // Quiz edge states
+    quizNotOpenBody: string;
+    quizClosedTitle: string;
+    quizClosedBody: (date: string) => string;
+    quizAlreadyDoneTitle: string;
+    quizAlreadyDoneBody: string;
     // Surveys & quizzes page
     hubTitle: string;
     hubIntro: string;
@@ -217,6 +248,34 @@ const en: SurveyCopy = {
     scoreLine: (c, t, passed) => `Scored ${c} of ${t} · ${passed ? "Passed" : "Not passed"}`,
     earned: (r) => `+${nf("en").format(r.amount)} ${rewardNoun(r, "en")}`,
     noRewardEarned: "No reward earned",
+    quizProgressLabel: "Quiz progress",
+    passMark: (p) => `Pass mark ${p}%`,
+    oneTry: "One try",
+    quizPrivacyTitle: "Your score is linked to your account.",
+    quizPrivacyBody: "The program team can see your answers and your score.",
+    checkAnswer: "Check answer",
+    correct: "Correct",
+    notQuite: "Not quite",
+    correctAnswerIs: (labels) =>
+        labels.length > 1
+            ? `The correct answers are ${labels.slice(0, -1).join(", ")} and ${labels.at(-1)}.`
+            : `The correct answer is ${labels[0] ?? ""}.`,
+    yourAnswer: "Your answer",
+    correctAnswer: "Correct answer",
+    notAnswered: "Not answered",
+    youScored: (c, t) => `You scored ${c} of ${t}`,
+    passed: "Passed",
+    notPassed: "Not passed",
+    neededToEarn: (p, r) => `You needed ${p}% to earn ${nf("en").format(r.amount)} ${rewardNoun(r, "en")}.`,
+    tierNotReached: (p) => `Score ${p}% or more to earn a reward.`,
+    reviewTitle: "Your answers",
+    reviewIntro: (c, t) => `${c} of ${t} correct. Questions that weren't scored aren't listed.`,
+    answersHidden: "The answers to this quiz aren't shared, so others can take it fairly.",
+    quizNotOpenBody: "Check back then to take the quiz.",
+    quizClosedTitle: "This quiz has closed",
+    quizClosedBody: (d) => `This quiz closed on ${d}. Thanks for your interest.`,
+    quizAlreadyDoneTitle: "You've already taken this quiz",
+    quizAlreadyDoneBody: "Quizzes can only be taken once.",
     hubTitle: "Surveys & quizzes",
     hubIntro: "Share your feedback and test what you know. Rewards are added the moment you finish.",
     tabAvailable: "Available",
@@ -336,6 +395,34 @@ const fr: SurveyCopy = {
     scoreLine: (c, t, passed) => `Résultat ${c} sur ${t} · ${passed ? "Réussi" : "Non réussi"}`,
     earned: (r) => `+${nf("fr").format(r.amount)} ${rewardNoun(r, "fr")}`,
     noRewardEarned: "Aucune récompense",
+    quizProgressLabel: "Progression du quiz",
+    passMark: (p) => `Note de passage ${p} %`,
+    oneTry: "Un seul essai",
+    quizPrivacyTitle: "Votre résultat est lié à votre compte.",
+    quizPrivacyBody: "L'équipe du programme peut voir vos réponses et votre résultat.",
+    checkAnswer: "Vérifier",
+    correct: "Bonne réponse",
+    notQuite: "Pas tout à fait",
+    correctAnswerIs: (labels) =>
+        labels.length > 1
+            ? `Les bonnes réponses sont ${labels.slice(0, -1).join(", ")} et ${labels.at(-1)}.`
+            : `La bonne réponse est ${labels[0] ?? ""}.`,
+    yourAnswer: "Votre réponse",
+    correctAnswer: "Bonne réponse",
+    notAnswered: "Sans réponse",
+    youScored: (c, t) => `Vous avez obtenu ${c} sur ${t}`,
+    passed: "Réussi",
+    notPassed: "Non réussi",
+    neededToEarn: (p, r) => `Il fallait ${p} % pour gagner ${nf("fr").format(r.amount)} ${rewardNoun(r, "fr")}.`,
+    tierNotReached: (p) => `Obtenez ${p} % ou plus pour gagner une récompense.`,
+    reviewTitle: "Vos réponses",
+    reviewIntro: (c, t) => `${c} bonnes réponses sur ${t}. Les questions non notées ne sont pas listées.`,
+    answersHidden: "Les réponses de ce quiz ne sont pas partagées, pour que tous puissent le faire équitablement.",
+    quizNotOpenBody: "Revenez à cette date pour faire le quiz.",
+    quizClosedTitle: "Ce quiz est terminé",
+    quizClosedBody: (d) => `Ce quiz a pris fin le ${d}. Merci de votre intérêt.`,
+    quizAlreadyDoneTitle: "Vous avez déjà fait ce quiz",
+    quizAlreadyDoneBody: "Un quiz ne peut être fait qu'une seule fois.",
     hubTitle: "Sondages et quiz",
     hubIntro: "Donnez votre avis et testez vos connaissances. Les récompenses sont ajoutées dès que vous terminez.",
     tabAvailable: "Disponibles",

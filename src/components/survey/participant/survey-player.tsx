@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AUTO_ADVANCE_MS } from "../questions/question-keys";
 import { SurveyLocaleProvider } from "../survey-locale-provider";
 import { useSurveyCopy } from "../survey-context";
+import { isQuiz, isScored, quizRewardFor, revealOf, scoreQuiz, withAnswerKey } from "../quiz-logic";
 import { countAnswerable, getAnswerError, getNextTarget, getResumePoint, pipeAnswers } from "../survey-logic";
-import type { AnswerValue, Survey, SurveyResponse, SurveyReward, SurveySubmitResult, ThankYouDestination } from "../survey-types";
+import type { AnswerValue, QuizAnswerKey, QuizScore, Survey, SurveyResponse, SurveyReward, SurveySubmitResult, ThankYouDestination } from "../survey-types";
+import { QuizResults } from "./quiz-results";
 import { getSurveyAvailability } from "./survey-availability";
 import { SurveyIntro } from "./survey-intro";
 import { SurveyQuestionScreen } from "./survey-question-screen";
@@ -33,7 +35,10 @@ export interface SurveyPlayerProps {
     shortcuts?: boolean;
 }
 
-type Stage = { kind: "intro" } | { kind: "question"; id: string } | { kind: "thank_you"; reward?: SurveyReward };
+type Stage =
+    | { kind: "intro" }
+    | { kind: "question"; id: string }
+    | { kind: "thank_you"; reward?: SurveyReward; score?: QuizScore; answerKey?: QuizAnswerKey };
 
 const emptyResponse = (survey: Survey): SurveyResponse => ({
     surveyId: survey.id,
@@ -47,6 +52,11 @@ const emptyResponse = (survey: Survey): SurveyResponse => ({
  * The whole participant flow: intro, one question per screen with jump logic and
  * piping, autosave and resume, submit, and thank-you. Shows the right edge state
  * when the survey isn't open, has closed or was already completed.
+ *
+ * Quizzes run through the same flow. Depending on `quiz.reveal`, scored questions
+ * either get a Check answer step with feedback (and Back is off, since a revealed
+ * answer can't change) or are only marked on the results screen, which replaces
+ * the thank-you with the score, the reward actually earned and a review.
  */
 export const SurveyPlayer = (props: SurveyPlayerProps) => (
     <SurveyLocaleProvider locale={props.survey.locale}>
@@ -79,6 +89,10 @@ const SurveyPlayerInner = ({
     const [submitError, setSubmitError] = useState<string>();
     const advanceTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
     const submittedRef = useRef(false);
+    const quiz = isQuiz(survey);
+    const revealEach = quiz && revealOf(survey.quiz) === "each_question";
+    // Scored questions whose answer has been checked. Anything already passed counts, so resuming never re-asks.
+    const [revealed, setRevealed] = useState<Set<string>>(() => new Set(initial?.history ?? []));
 
     // When resuming, rebuild the Back path from the saved answers.
     useEffect(() => {
@@ -104,7 +118,15 @@ const SurveyPlayerInner = ({
     const total = countAnswerable(survey.questions);
 
     if (availability !== "open" && stage.kind !== "thank_you") {
-        return <SurveyUnavailable survey={survey} reason={availability} onBack={() => onNavigate?.("dashboard")} />;
+        return (
+            <SurveyUnavailable
+                survey={survey}
+                reason={availability}
+                rewardEarned={initial?.rewardEarned}
+                score={initial?.score}
+                onBack={() => onNavigate?.("dashboard")}
+            />
+        );
     }
 
     if (stage.kind === "intro") {
@@ -126,6 +148,18 @@ const SurveyPlayerInner = ({
         );
     }
 
+    if (stage.kind === "thank_you" && quiz) {
+        return (
+            <QuizResults
+                survey={withAnswerKey(survey, stage.answerKey)}
+                answers={response.answers}
+                score={stage.score ?? scoreQuiz(survey, response.answers)}
+                reward={stage.reward}
+                onAction={(d, href) => onNavigate?.(d, href)}
+            />
+        );
+    }
+
     if (stage.kind === "thank_you") {
         return <SurveyThankYou surveyTitle={survey.title} settings={survey.thankYou} reward={stage.reward} onAction={(d, href) => onNavigate?.(d, href)} />;
     }
@@ -134,6 +168,8 @@ const SurveyPlayerInner = ({
     const value = response.answers[question.id];
     const nextTarget = getNextTarget(survey, question.id, response.answers);
     const isLast = nextTarget === "end";
+    const checkFirst = revealEach && isScored(question);
+    const isRevealed = checkFirst && revealed.has(question.id);
     // Statements take the number of the question after them.
     const index = survey.questions.indexOf(question);
     const number = Math.min(total, Math.max(1, answerable.filter((q) => survey.questions.indexOf(q) < index).length + 1));
@@ -145,12 +181,23 @@ const SurveyPlayerInner = ({
         setSubmitting(true);
         setSubmitError(undefined);
         try {
+            // Quizzes are graded here for display; the platform grades again and its score wins.
+            const localScore = quiz ? scoreQuiz(survey, final.answers) : undefined;
             const complete: SurveyResponse = {
                 ...final,
                 status: "complete",
                 submittedAt: (now ?? new Date()).toISOString(),
+                ...(localScore && { score: localScore, rewardEarned: quizRewardFor(survey, localScore) }),
             };
             const result = await onSubmit(complete);
+            if (quiz) {
+                const score = result.score ?? localScore!;
+                // When the platform graded it, its reward (or none) stands.
+                const reward = result.score ? result.reward : (result.reward ?? quizRewardFor(survey, score));
+                save({ ...complete, score, rewardEarned: reward });
+                setStage({ kind: "thank_you", reward, score, answerKey: result.answerKey });
+                return;
+            }
             save(complete);
             setStage({ kind: "thank_you", reward: result.reward ?? survey.reward });
         } catch {
@@ -170,6 +217,12 @@ const SurveyPlayerInner = ({
             return;
         }
         setMessage(undefined);
+        // Check answer: show the result and stay. The next press moves on.
+        if (checkFirst && !isRevealed) {
+            save({ ...response, status: "in_progress", answers: { ...response.answers, [question.id]: answer } });
+            setRevealed((r) => new Set([...r, question.id]));
+            return;
+        }
         const answers = { ...response.answers, [question.id]: answer };
         const history = response.history.at(-1) === question.id ? response.history : [...response.history, question.id];
         const next: SurveyResponse = {
@@ -208,6 +261,7 @@ const SurveyPlayerInner = ({
             progress={progress}
             value={value}
             onChange={(v) => {
+                if (isRevealed) return; // a checked answer is final
                 setMessage(undefined);
                 save({
                     ...response,
@@ -216,6 +270,8 @@ const SurveyPlayerInner = ({
                 });
             }}
             onCommit={(v) => {
+                // Answers that get checked wait for the Check answer button.
+                if (checkFirst) return;
                 // Never submit from a tap or Enter in a field; the last step needs Submit.
                 if (
                     getNextTarget(survey, question.id, {
@@ -228,13 +284,17 @@ const SurveyPlayerInner = ({
                 advanceTimer.current = setTimeout(() => advance(v), AUTO_ADVANCE_MS);
             }}
             onNext={() => advance()}
-            onBack={response.history.length > 0 ? back : undefined}
+            // Revealing answers one by one means earlier answers are final, so there's no going back.
+            onBack={response.history.length > 0 && !revealEach ? back : undefined}
             onExit={() => onExit?.(response)}
             message={message}
             submitError={submitError}
             isLast={isLast}
             isSubmitting={submitting}
             shortcuts={shortcuts}
+            checkFirst={checkFirst}
+            revealed={isRevealed}
+            progressLabel={quiz ? copy.quizProgressLabel : undefined}
         />
     );
 };

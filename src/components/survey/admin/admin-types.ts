@@ -1,9 +1,11 @@
 import type { FC } from "react";
-import type { SurveyAnonymity, SurveyLocale, SurveyReward, SurveyStatus } from "../survey-types";
+import type { QuizRewardRule, SurveyAnonymity, SurveyKind, SurveyLocale, SurveyReward, SurveyStatus } from "../survey-types";
 
 /** One row on the admin survey list (A1). Counts come from the platform; the list never loads full responses. */
 export interface SurveyListItem {
     id: string;
+    /** Defaults to "survey". */
+    kind?: SurveyKind;
     title: string;
     status: SurveyStatus;
     questionCount: number;
@@ -18,7 +20,10 @@ export interface SurveyListItem {
     responses?: number;
     /** Finished ÷ started, 0 to 1. */
     completionRate?: number;
+    /** For tiered quizzes, `reward.amount` is the top tier. */
     reward?: SurveyReward;
+    /** Quizzes only: how the reward is paid, so the list can say "Pass: 250 points" or "Up to 500 points". */
+    quizRewardRule?: QuizRewardRule;
     /** Base language first. */
     locales: SurveyLocale[];
     /** ISO date-time of the last save. Shown for drafts ("Draft saved 2 hours ago"). */
@@ -31,6 +36,8 @@ export type SurveyRowAction = "edit" | "preview" | "results" | "duplicate" | "cl
 /** A Core-managed starter template (shown in the empty state, template library and New survey modal). */
 export interface SurveyTemplate {
     id: string;
+    /** Defaults to "survey". Quiz templates come with correct answers marked for the admin to check. */
+    kind?: SurveyKind;
     title: string;
     description: string;
     questionCount: number;
@@ -50,6 +57,8 @@ export interface SurveyTemplate {
 export type NewSurveySource = "template" | "blank" | "duplicate";
 
 export interface NewSurveyRequest {
+    /** Survey or quiz. Chosen here and fixed for the life of the survey. */
+    kind: SurveyKind;
     source: NewSurveySource;
     /** For `template`. */
     templateId?: string;

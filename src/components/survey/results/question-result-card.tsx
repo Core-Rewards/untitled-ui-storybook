@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { File04, SearchLg } from "@untitledui/icons";
+import { CheckCircle, File04, SearchLg } from "@untitledui/icons";
 import { Button } from "@/components/base/buttons/button";
 import { cx } from "@/utils/cx";
 import { onlyIf } from "../builder/logic-analysis";
 import { typeInfo } from "../builder/question-catalog";
+import { isScored } from "../quiz-logic";
 import type { Survey, SurveyQuestion } from "../survey-types";
 import type { BarRow, QuestionSummary } from "./results-aggregate";
 
@@ -17,7 +18,9 @@ const fmtDate = (iso?: string) => (iso ? new Intl.DateTimeFormat("en-US", { mont
 export const QuestionResultCard = ({ survey, question, summary }: { survey: Survey; question: SurveyQuestion; summary: QuestionSummary }) => {
     const index = survey.questions.indexOf(question);
     const condition = onlyIf(survey, question);
-    const typeLabel = question.type === "multiple_choice" ? `Multiple choice, ${question.multiple ? "pick any" : "pick one"}` : typeInfo(question.type).label;
+    const baseLabel = question.type === "multiple_choice" ? `Multiple choice, ${question.multiple ? "pick any" : "pick one"}` : typeInfo(question.type).label;
+    const typeLabel = isScored(question) ? `${baseLabel} · Scored` : baseLabel;
+    const correctPct = summary.kind === "bars" ? summary.correctPct : undefined;
     const average =
         summary.kind === "bars" && summary.average !== undefined
             ? ` · Average ${summary.average.toFixed(1)}`
@@ -36,6 +39,12 @@ export const QuestionResultCard = ({ survey, question, summary }: { survey: Surv
                     <span className="text-tertiary">
                         {summary.answered.toLocaleString("en-US")} {summary.answered === 1 ? "response" : "responses"}
                         {average}
+                        {correctPct !== undefined && (
+                            <>
+                                {" · "}
+                                <span className="font-semibold text-primary">{correctPct}% answered correctly</span>
+                            </>
+                        )}
                     </span>
                 </div>
                 <h3 id={`result-${question.id}`} className="text-md font-semibold text-primary">
@@ -47,15 +56,18 @@ export const QuestionResultCard = ({ survey, question, summary }: { survey: Surv
     );
 };
 
+/** Bars with counts. On scored quiz questions the right answer is green with a check, so it never relies on colour alone. */
 const Bars = ({ rows }: { rows: BarRow[] }) => (
     <ul className="flex flex-col gap-2.5">
         {rows.map((r) => (
             <li key={r.label} className="grid grid-cols-[minmax(0,10rem)_minmax(0,1fr)_3rem] items-center gap-3 text-sm">
-                <span className="truncate text-secondary" title={r.label}>
-                    {r.label}
+                <span className={cx("flex min-w-0 items-center gap-1.5", r.correct ? "font-semibold text-success-primary" : "text-secondary")} title={r.label}>
+                    {r.correct && <CheckCircle className="size-4 shrink-0 text-fg-success-primary" aria-hidden="true" />}
+                    <span className="truncate">{r.label}</span>
+                    {r.correct && <span className="sr-only"> (correct answer)</span>}
                 </span>
                 <span aria-hidden="true" className="h-5 overflow-hidden rounded-md bg-secondary">
-                    <span className="block h-full rounded-md bg-brand-solid" style={{ width: `${r.pct}%` }} />
+                    <span className={cx("block h-full rounded-md", r.correct ? "bg-success-solid" : "bg-brand-solid")} style={{ width: `${r.pct}%` }} />
                 </span>
                 <span className="text-right font-semibold text-primary tabular-nums">
                     {r.pct}%<span className="sr-only">, {r.count} responses</span>

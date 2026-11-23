@@ -39,6 +39,15 @@ interface QuestionBase {
     logic?: LogicRule[];
     /** Where to go when no rule matches. Defaults to the next question. */
     defaultTarget?: LogicTarget;
+    /**
+     * Quizzes: the right answer. Option ids, or "yes" / "no" for Yes / No. Setting it
+     * (even to an empty list while drafting) makes the question scored. Only
+     * multiple choice, dropdown and yes / no can be scored; see `quiz-logic.ts`.
+     * Multi-select questions need every correct option and no others.
+     */
+    correct?: string[];
+    /** Quizzes: why the answer is right. Shown when answers are revealed, right or wrong. */
+    explanation?: string;
 }
 
 export interface MultipleChoiceQuestion extends QuestionBase {
@@ -241,12 +250,35 @@ export type SurveyKind = "survey" | "quiz";
 /** How a quiz pays its reward. Set per quiz. */
 export type QuizRewardRule = "completion" | "pass" | "tiered";
 
+/**
+ * When participants see the right answers and explanations:
+ * - `each_question`: straight after they check each answer. Back is off, since a revealed answer can't change.
+ * - `at_end`: on the results screen, after submitting.
+ * - `never`: only their score. Use when the same questions run again.
+ */
+export type QuizAnswerReveal = "each_question" | "at_end" | "never";
+
+export interface QuizTier {
+    /** Minimum percent correct for this tier, 0 to 100. */
+    minScore: number;
+    amount: number;
+}
+
 export interface QuizSettings {
     /** Percent correct needed to pass, 0 to 100. */
     passMark: number;
     rewardRule: QuizRewardRule;
     /** Tiered only: minimum percent and the amount for it, best tier first. `reward.amount` is the top tier. */
-    tiers?: { minScore: number; amount: number }[];
+    tiers?: QuizTier[];
+    /** Defaults to `at_end`. */
+    reveal?: QuizAnswerReveal;
+}
+
+/** A quiz result. `total` counts the scored questions on the participant's path. */
+export interface QuizScore {
+    correct: number;
+    total: number;
+    passed: boolean;
 }
 
 export interface Survey {
@@ -303,12 +335,25 @@ export interface SurveyResponse {
     /** Test responses from Preview are never counted or paid. */
     isTest?: boolean;
     /** Quizzes: the result once submitted. */
-    score?: { correct: number; total: number; passed: boolean };
+    score?: QuizScore;
     /** What was actually paid on submit (a quiz may pay less, or nothing). */
     rewardEarned?: SurveyReward;
 }
 
 /** What the platform returns after a successful submit. */
 export interface SurveySubmitResult {
+    /** What was paid. For quizzes this depends on the score and may be nothing. */
     reward?: SurveyReward;
+    /**
+     * Quizzes: the platform's grading, which wins over the browser's. The platform
+     * should always grade on submit; see `quiz-logic.ts` for the rules to match.
+     */
+    score?: QuizScore;
+    /**
+     * Quizzes: right answers and explanations, by question id, for the results
+     * review. Lets the platform keep them out of the browser until now.
+     */
+    answerKey?: QuizAnswerKey;
 }
+
+export type QuizAnswerKey = Record<string, { correct: string[]; explanation?: string }>;

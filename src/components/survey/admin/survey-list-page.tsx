@@ -9,9 +9,9 @@ import { DataTable } from "@/components/base/table";
 import type { TableColumn } from "@/components/base/table";
 import { FeaturedIcon } from "@/components/foundations/featured-icon/featured-icon";
 import { cx } from "@/utils/cx";
-import type { SurveyStatus } from "../survey-types";
+import type { SurveyKind, SurveyStatus } from "../survey-types";
 import type { SurveyListItem, SurveyRowAction, SurveyTemplate } from "./admin-types";
-import { formatDateRange, formatRelative, formatReward, rowActionsFor, statusBadge } from "./admin-format";
+import { formatDateRange, formatListReward, formatRelative, rowActionsFor, statusBadge } from "./admin-format";
 
 type StatusTab = "all" | Exclude<SurveyStatus, "archived">;
 
@@ -46,7 +46,17 @@ export interface SurveyListPageProps {
     now?: Date;
     /** Tab shown first. Defaults to All. */
     defaultTab?: StatusTab;
+    /** Kind filter shown first, when the program has quizzes. Defaults to All. */
+    defaultKind?: KindFilter;
 }
+
+type KindFilter = "all" | SurveyKind;
+
+const KIND_FILTERS: { id: KindFilter; label: string }[] = [
+    { id: "all", label: "All" },
+    { id: "survey", label: "Surveys" },
+    { id: "quiz", label: "Quizzes" },
+];
 
 /**
  * Survey list (A1): page header with New survey (which holds the template library), status tabs
@@ -62,9 +72,15 @@ export const SurveyListPage = ({
     onRowAction,
     now = new Date(),
     defaultTab = "all",
+    defaultKind = "all",
 }: SurveyListPageProps) => {
     const [tab, setTab] = useState<StatusTab>(defaultTab);
-    const visible = useMemo(() => surveys.filter((s) => s.status !== "archived"), [surveys]);
+    const [kind, setKind] = useState<KindFilter>(defaultKind);
+    const hasQuizzes = surveys.some((s) => s.kind === "quiz" && s.status !== "archived");
+    const visible = useMemo(
+        () => surveys.filter((s) => s.status !== "archived" && (!hasQuizzes || kind === "all" || (s.kind ?? "survey") === kind)),
+        [surveys, kind, hasQuizzes],
+    );
     const rows = tab === "all" ? visible : visible.filter((s) => s.status === tab);
     const countFor = (id: StatusTab) => (id === "all" ? visible.length : visible.filter((s) => s.status === id).length);
 
@@ -77,18 +93,25 @@ export const SurveyListPage = ({
             cellClassName: "min-w-64",
             cell: (s) => (
                 <div className="flex flex-col">
-                    <button
-                        type="button"
-                        onClick={() => onRowAction(s.status === "live" || s.status === "closed" ? "results" : "edit", s)}
-                        className="cursor-pointer self-start rounded-sm text-left font-medium text-primary outline-focus-ring hover:underline focus-visible:outline-2 focus-visible:outline-offset-2"
-                    >
-                        {s.title}
-                    </button>
+                    <span className="flex flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => onRowAction(s.status === "live" || s.status === "closed" ? "results" : "edit", s)}
+                            className="cursor-pointer rounded-sm text-left font-medium text-primary outline-focus-ring hover:underline focus-visible:outline-2 focus-visible:outline-offset-2"
+                        >
+                            {s.title}
+                        </button>
+                        {s.kind === "quiz" && (
+                            <Badge color="brand" size="sm">
+                                Quiz
+                            </Badge>
+                        )}
+                    </span>
                     <span className="text-sm text-tertiary">
                         {s.questionCount} questions ·{" "}
                         {s.status === "draft"
                             ? `Draft saved ${formatRelative(s.updatedAt, now)}`
-                            : `About ${s.minutes} min · ${s.anonymity === "anonymous" ? "Anonymous" : "Identified"}`}
+                            : `About ${s.minutes} min · ${s.kind === "quiz" ? "Scored" : s.anonymity === "anonymous" ? "Anonymous" : "Identified"}`}
                     </span>
                 </div>
             ),
@@ -140,7 +163,7 @@ export const SurveyListPage = ({
             sortValue: (s) => s.reward?.amount ?? 0,
             headerClassName: "px-3",
             cellClassName: "px-3 whitespace-nowrap",
-            cell: (s) => formatReward(s.reward),
+            cell: (s) => formatListReward(s),
         },
         {
             id: "languages",
@@ -165,7 +188,9 @@ export const SurveyListPage = ({
             <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex flex-col gap-1">
                     <h1 className="text-display-xs font-semibold text-primary">Surveys</h1>
-                    <p className="text-md text-tertiary">Collect feedback from {programName} participants and reward them for completing it.</p>
+                    <p className="text-md text-tertiary">
+                        Collect feedback from {programName} participants{hasQuizzes ? ", test what they know," : ""} and reward them for taking part.
+                    </p>
                 </div>
                 <div className="flex shrink-0 gap-3 sm:mr-12">
                     <Button size="md" iconLeading={Plus} onClick={onNewSurvey}>
@@ -174,7 +199,28 @@ export const SurveyListPage = ({
                 </div>
             </header>
 
-            {visible.length === 0 ? (
+            {hasQuizzes && (
+                <div role="group" aria-label="Show" className="-mb-2 flex flex-wrap gap-2">
+                    {KIND_FILTERS.map((k) => (
+                        <button
+                            key={k.id}
+                            type="button"
+                            aria-pressed={kind === k.id}
+                            onClick={() => setKind(k.id)}
+                            className={cx(
+                                "cursor-pointer rounded-full px-3 py-1 text-sm font-medium ring-1 outline-focus-ring transition duration-100 ease-linear ring-inset focus-visible:outline-2 focus-visible:outline-offset-2",
+                                kind === k.id
+                                    ? "bg-brand-primary_alt text-brand-secondary ring-brand"
+                                    : "bg-primary text-secondary ring-primary hover:bg-primary_hover",
+                            )}
+                        >
+                            {k.label}
+                        </button>
+                    ))}
+                </div>
+            )}
+
+            {surveys.every((s) => s.status === "archived") ? (
                 <EmptyState templates={templates} onUseTemplate={onUseTemplate} onNewSurvey={onNewSurvey} />
             ) : (
                 <Tabs selectedKey={tab} onSelectionChange={(key: Key) => setTab(key as StatusTab)}>
@@ -195,12 +241,12 @@ export const SurveyListPage = ({
                             badge={null}
                             size="sm"
                             tableClassName="min-w-240"
-                            search={{ placeholder: "Search surveys", getText: (s) => s.title }}
+                            search={{ placeholder: hasQuizzes ? "Search surveys and quizzes" : "Search surveys", getText: (s) => s.title }}
                             defaultSortDescriptor={{ column: "dates", direction: "descending" }}
                             noResultsState={<p className="px-6 py-10 text-center text-sm text-tertiary">No surveys match your search.</p>}
                             emptyState={
                                 <p className="px-6 py-10 text-center text-sm text-tertiary">
-                                    No {TABS.find((t) => t.id === tab)?.label.toLowerCase()} surveys.
+                                    No {TABS.find((t) => t.id === tab)?.label.toLowerCase()} {kind === "quiz" ? "quizzes" : kind === "all" && hasQuizzes ? "surveys or quizzes" : "surveys"}.
                                 </p>
                             }
                         />

@@ -9,6 +9,8 @@ export interface SurveyTakeoverProps {
     surveyTitle?: string;
     /** 0 to 1. Omit to hide the bar. */
     progress?: number;
+    /** Accessible name for the progress bar. Defaults to "Survey progress". */
+    progressLabel?: string;
     /** "3 of 5". Omit on intro and thank-you. */
     position?: { current: number; total: number };
     /** Shows the back arrow (narrow) when set. */
@@ -33,6 +35,7 @@ export interface SurveyTakeoverProps {
 export const SurveyTakeover = ({
     surveyTitle,
     progress,
+    progressLabel,
     position,
     onBack,
     onExit,
@@ -51,7 +54,7 @@ export const SurveyTakeover = ({
             {progress !== undefined && (
                 <div
                     role="progressbar"
-                    aria-label={copy.progressLabel}
+                    aria-label={progressLabel ?? copy.progressLabel}
                     aria-valuemin={0}
                     aria-valuemax={100}
                     aria-valuenow={Math.round(progress * 100)}

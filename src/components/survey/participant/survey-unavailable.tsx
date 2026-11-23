@@ -2,7 +2,8 @@ import { CalendarDate, CheckCircle, ClockStopwatch } from "@untitledui/icons";
 import { Button } from "@/components/base/buttons/button";
 import { useSurveyCopy } from "../survey-context";
 import { formatSurveyDate } from "../survey-copy";
-import type { Survey, SurveyReward } from "../survey-types";
+import { isQuiz } from "../quiz-logic";
+import type { QuizScore, Survey, SurveyReward } from "../survey-types";
 import type { SurveyAvailability } from "./survey-availability";
 import { SurveyTakeover } from "./survey-takeover";
 
@@ -11,33 +12,45 @@ export interface SurveyUnavailableProps {
     reason: Exclude<SurveyAvailability, "open">;
     /** For "completed": the reward they earned. */
     rewardEarned?: SurveyReward;
+    /** Quizzes, for "completed": their score. */
+    score?: QuizScore;
     onBack: () => void;
 }
 
 /** What a participant sees when a survey link isn't usable: not open yet, closed, or already done. */
-export const SurveyUnavailable = ({ survey, reason, rewardEarned, onBack }: SurveyUnavailableProps) => {
+export const SurveyUnavailable = ({ survey, reason, rewardEarned, score, onBack }: SurveyUnavailableProps) => {
     const { copy, locale } = useSurveyCopy();
     const opens = formatSurveyDate(survey.opensAt, locale, survey.timezone);
     const closed = formatSurveyDate(survey.closesAt, locale, survey.timezone);
+
+    const quiz = isQuiz(survey);
+    // Quizzes can't be retaken. Say how it went, and that it's one try only.
+    const quizDone = [
+        score && copy.scoreLine(score.correct, score.total, score.passed),
+        rewardEarned ? copy.earned(rewardEarned) : survey.reward && score ? copy.noRewardEarned : undefined,
+    ]
+        .filter(Boolean)
+        .join(" · ");
 
     const content = {
         not_open: {
             Icon: CalendarDate,
             title: copy.notOpenTitle(opens),
-            body: copy.notOpenBody,
+            body: quiz ? copy.quizNotOpenBody : copy.notOpenBody,
             tone: "bg-secondary text-fg-secondary",
         },
         closed: {
             Icon: ClockStopwatch,
-            title: copy.closedTitle,
-            body: copy.closedBody(closed),
+            title: quiz ? copy.quizClosedTitle : copy.closedTitle,
+            body: quiz ? copy.quizClosedBody(closed) : copy.closedBody(closed),
             tone: "bg-secondary text-fg-secondary",
         },
         completed: {
             Icon: CheckCircle,
-            title: copy.alreadyDoneTitle,
-            body: copy.alreadyDoneBody(rewardEarned ?? survey.reward),
-            tone: "bg-success-secondary text-fg-success-primary",
+            title: quiz ? copy.quizAlreadyDoneTitle : copy.alreadyDoneTitle,
+            body: quiz ? [quizDone, copy.quizAlreadyDoneBody].filter(Boolean).join(". ") : copy.alreadyDoneBody(rewardEarned ?? survey.reward),
+            // A quiz that wasn't passed is done, but not a success.
+            tone: quiz && score && !score.passed ? "bg-secondary text-fg-secondary" : "bg-success-secondary text-fg-success-primary",
         },
     }[reason];
 

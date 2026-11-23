@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowLeft, ChevronLeft, ChevronRight, Download01, Edit05, EyeOff } from "@untitledui/icons";
+import { ArrowLeft, CheckCircle, ChevronLeft, ChevronRight, Download01, Edit05, EyeOff, XCircle } from "@untitledui/icons";
 import { Heading, Radio, RadioGroup } from "react-aria-components";
 import type { Key } from "react-aria-components";
 import { Dialog, Modal, ModalOverlay } from "@/components/application/modals/modal";
@@ -14,9 +14,23 @@ import { Toast } from "@/components/base/toast/toast";
 import { cx } from "@/utils/cx";
 import { formatDateRange, statusBadge } from "../admin/admin-format";
 import { SelectField, SettingToggle } from "../builder/settings-fields";
-import type { Survey } from "../survey-types";
+import { correctLabels, isCorrect, isQuiz, isScored } from "../quiz-logic";
+import type { Survey, SurveyReward } from "../survey-types";
 import { QuestionResultCard } from "./question-result-card";
-import { MIN_GROUP_SIZE, answerText, applyFilters, computeKpis, formatDuration, summarize, toRawCsv, toSummaryCsv } from "./results-aggregate";
+import {
+    MIN_GROUP_SIZE,
+    answerText,
+    applyFilters,
+    computeKpis,
+    computeQuizKpis,
+    formatDuration,
+    quizResultFor,
+    scoreDistribution,
+    summarize,
+    toRawCsv,
+    toSummaryCsv,
+} from "./results-aggregate";
+import type { QuizResult } from "./results-aggregate";
 import type { ExportOptions, ResultResponse, ResultsFilters } from "./results-types";
 
 export interface ResultsPageProps {
@@ -37,6 +51,8 @@ export interface ResultsPageProps {
 const fmtDateTime = (iso?: string) =>
     iso ? new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(iso)) : "";
 
+const rewardUnit = (reward?: Pick<SurveyReward, "type">) => (reward?.type === "points" ? "points" : reward?.type === "sweepstakes" ? "entries" : "spins");
+
 const download = (filename: string, text: string) => {
     const url = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
@@ -51,6 +67,10 @@ const download = (filename: string, text: string) => {
  * Summary tab, and a Responses table whose rows open the full response in a side
  * drawer. Anonymous surveys never show identities, and any filter that leaves fewer
  * than 5 responses is hidden so no one can be singled out.
+ *
+ * Quizzes add scoring: average score, pass rate and what was actually paid in the
+ * header, a score distribution with the pass mark, the right answer and "% answered
+ * correctly" on each scored question, and Score / Result in the table and drawer.
  */
 export const ResultsPage = ({ survey, responses, onExit, onEditSurvey, onExport, now = new Date(), initialTab = "summary" }: ResultsPageProps) => {
     const [tab, setTab] = useState(initialTab);
@@ -60,10 +80,14 @@ export const ResultsPage = ({ survey, responses, onExit, onEditSurvey, onExport,
     const [toast, setToast] = useState<{ id: number; message: string } | null>(null);
 
     const anonymous = survey.anonymity === "anonymous";
+    const quiz = isQuiz(survey);
+    const noun = quiz ? "quiz" : "survey";
     const locales = survey.enabledLocales ?? [survey.locale];
     const inScope = useMemo(() => applyFilters(responses, filters, now), [responses, filters, now]);
     const shown = filters.includePartial ? inScope : inScope.filter((r) => r.status === "complete");
     const kpis = computeKpis(survey, inScope);
+    const quizKpis = useMemo(() => (quiz ? computeQuizKpis(survey, inScope) : undefined), [quiz, survey, inScope]);
+    const quizResults = useMemo(() => new Map(shown.map((r) => [r.number, quizResultFor(survey, r)])), [shown, survey]);
     const suppressed = anonymous && shown.length > 0 && shown.length < MIN_GROUP_SIZE;
     const regions = useMemo(() => Array.from(new Set(responses.map((r) => r.participant?.region).filter(Boolean) as string[])).sort(), [responses]);
 
@@ -79,6 +103,7 @@ export const ResultsPage = ({ survey, responses, onExit, onEditSurvey, onExport,
     const ordered = useMemo(() => [...shown].sort((a, b) => b.number - a.number), [shown]);
     const openIndex = ordered.findIndex((r) => r.number === openNumber);
     const open = openIndex >= 0 ? ordered[openIndex] : undefined;
+    const openResult = open ? quizResults.get(open.number) : undefined;
 
     const columns: TableColumn<ResultResponse>[] = [
         {
@@ -121,6 +146,34 @@ export const ResultsPage = ({ survey, responses, onExit, onEditSurvey, onExport,
                 </Badge>
             ),
         },
+        ...(quiz
+            ? ([
+                  {
+                      id: "score",
+                      header: "Score",
+                      align: "right",
+                      cellClassName: "whitespace-nowrap tabular-nums",
+                      sortValue: (r) => quizResults.get(r.number)?.percent ?? -1,
+                      cell: (r) => {
+                          const result = quizResults.get(r.number);
+                          return result ? (
+                              `${result.score.correct} / ${result.score.total} · ${result.percent}%`
+                          ) : (
+                              <span className="text-quaternary">Not scored</span>
+                          );
+                      },
+                  },
+                  {
+                      id: "result",
+                      header: "Result",
+                      sortValue: (r) => {
+                          const result = quizResults.get(r.number);
+                          return result ? (result.score.passed ? 2 : 1) : 0;
+                      },
+                      cell: (r) => <ResultBadge result={quizResults.get(r.number)} />,
+                  },
+              ] as TableColumn<ResultResponse>[])
+            : []),
         { id: "time", header: "Time", align: "right", sortValue: (r) => r.durationSeconds ?? -1, cell: (r) => formatDuration(r.durationSeconds) },
     ];
 
@@ -146,7 +199,7 @@ export const ResultsPage = ({ survey, responses, onExit, onEditSurvey, onExport,
                 </div>
                 <div className="flex shrink-0 gap-3 sm:mr-12">
                     <Button color="secondary" size="md" iconLeading={Edit05} onClick={onEditSurvey}>
-                        Edit survey
+                        Edit {noun}
                     </Button>
                     <Button size="md" iconLeading={Download01} onClick={() => setExportOpen(true)}>
                         Export
@@ -163,16 +216,55 @@ export const ResultsPage = ({ survey, responses, onExit, onEditSurvey, onExport,
                 </Tabs.List>
             </Tabs>
 
-            <dl className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                <Kpi label="Responses" value={kpis.responses.toLocaleString("en-US")} />
-                <Kpi
-                    label="Completion rate"
-                    value={kpis.completionRate !== undefined ? `${Math.round(kpis.completionRate * 100)}%` : "–"}
-                    hint={`${kpis.responses} of ${kpis.started} who started`}
-                />
-                <Kpi label="Median time" value={formatDuration(kpis.medianSeconds)} />
-                {survey.reward ? <Kpi label={rewardLabel} value={kpis.rewardIssued.toLocaleString("en-US")} /> : <Kpi label="Reward" value="None" />}
-            </dl>
+            {quizKpis ? (
+                <dl className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                    <Kpi
+                        label="Responses"
+                        value={quizKpis.responses.toLocaleString("en-US")}
+                        hint={
+                            quizKpis.completionRate !== undefined
+                                ? `${Math.round(quizKpis.completionRate * 100)}% of ${quizKpis.started} who started finished`
+                                : undefined
+                        }
+                    />
+                    <Kpi
+                        label="Average score"
+                        value={quizKpis.averagePercent !== undefined ? `${Math.round(quizKpis.averagePercent)}%` : "–"}
+                        hint={`Median time ${formatDuration(quizKpis.medianSeconds)}`}
+                    />
+                    <Kpi
+                        label="Pass rate"
+                        value={quizKpis.passRate !== undefined ? `${Math.round(quizKpis.passRate * 100)}%` : "–"}
+                        hint={`${quizKpis.passed} of ${quizKpis.responses} passed · pass mark ${survey.quiz?.passMark ?? 80}%`}
+                    />
+                    {survey.reward ? (
+                        <Kpi
+                            label={rewardLabel}
+                            value={quizKpis.rewardIssued.toLocaleString("en-US")}
+                            hint={
+                                survey.quiz?.rewardRule === "pass"
+                                    ? `Paid to the ${quizKpis.rewarded} who passed`
+                                    : survey.quiz?.rewardRule === "tiered"
+                                      ? `Tiered by score · ${quizKpis.rewarded} of ${quizKpis.responses} earned a tier`
+                                      : "Paid on completion"
+                            }
+                        />
+                    ) : (
+                        <Kpi label="Reward" value="None" />
+                    )}
+                </dl>
+            ) : (
+                <dl className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                    <Kpi label="Responses" value={kpis.responses.toLocaleString("en-US")} />
+                    <Kpi
+                        label="Completion rate"
+                        value={kpis.completionRate !== undefined ? `${Math.round(kpis.completionRate * 100)}%` : "–"}
+                        hint={`${kpis.responses} of ${kpis.started} who started`}
+                    />
+                    <Kpi label="Median time" value={formatDuration(kpis.medianSeconds)} />
+                    {survey.reward ? <Kpi label={rewardLabel} value={kpis.rewardIssued.toLocaleString("en-US")} /> : <Kpi label="Reward" value="None" />}
+                </dl>
+            )}
 
             <div className="flex flex-wrap items-end justify-between gap-4">
                 <div className="flex flex-wrap gap-3 [&>*]:w-44">
@@ -238,6 +330,7 @@ export const ResultsPage = ({ survey, responses, onExit, onEditSurvey, onExport,
                 />
             ) : tab === "summary" ? (
                 <div className="grid gap-5 lg:grid-cols-2">
+                    {quiz && <ScoreDistributionCard survey={survey} responses={shown} />}
                     {survey.questions
                         .filter((q) => q.type !== "statement")
                         .map((q) => (
@@ -275,6 +368,27 @@ export const ResultsPage = ({ survey, responses, onExit, onEditSurvey, onExport,
                                     · {open.locale.toUpperCase()}
                                     {open.durationSeconds ? ` · ${formatDuration(open.durationSeconds)}` : ""}
                                 </p>
+                                {quiz && (
+                                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                                        {openResult ? (
+                                            <>
+                                                <span className="text-md font-semibold text-primary tabular-nums">
+                                                    Scored {openResult.score.correct} of {openResult.score.total} · {openResult.percent}%
+                                                </span>
+                                                <ResultBadge result={openResult} />
+                                                {survey.reward && (
+                                                    <span className="text-sm text-tertiary">
+                                                        {openResult.reward
+                                                            ? `+${openResult.reward.amount.toLocaleString("en-US")} ${rewardUnit(openResult.reward)} earned`
+                                                            : "No reward earned"}
+                                                    </span>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <span className="text-sm text-tertiary">Not scored: the quiz wasn't submitted.</span>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </SlideoutMenu.Header>
                         <SlideoutMenu.Content>
@@ -288,16 +402,37 @@ export const ResultsPage = ({ survey, responses, onExit, onEditSurvey, onExport,
                                                 ? q.rows.map((r, i) => `${r.label}: ${t[i] || "–"}`).join("\n")
                                                 : t.join(", ")
                                             : t;
+                                        // Only submitted quizzes are graded; partial answers show as they are.
+                                        const right = openResult && isScored(q) ? isCorrect(q, open.answers[q.id]) : undefined;
+                                        const Mark = right ? CheckCircle : XCircle;
                                         return (
                                             <li key={q.id} className="flex flex-col gap-1">
-                                                <span className="text-xs font-semibold text-tertiary">Q{survey.questions.indexOf(q) + 1}</span>
-                                                <span className="text-sm font-medium text-secondary">{q.title}</span>
-                                                <span
-                                                    className={cx("text-md whitespace-pre-line", text ? "text-primary" : "text-quaternary italic")}
-                                                    lang={open.locale}
-                                                >
-                                                    {text || "Not answered"}
+                                                <span className="text-xs font-semibold text-tertiary">
+                                                    Q{survey.questions.indexOf(q) + 1}
+                                                    {quiz && !isScored(q) && " · Not scored"}
                                                 </span>
+                                                <span className="text-sm font-medium text-secondary">{q.title}</span>
+                                                <span className="flex items-start gap-2">
+                                                    {right !== undefined && (
+                                                        <Mark
+                                                            className={cx(
+                                                                "mt-0.5 size-5 shrink-0",
+                                                                right ? "text-fg-success-primary" : "text-fg-error-primary",
+                                                            )}
+                                                            aria-hidden="true"
+                                                        />
+                                                    )}
+                                                    <span
+                                                        className={cx("text-md whitespace-pre-line", text ? "text-primary" : "text-quaternary italic")}
+                                                        lang={open.locale}
+                                                    >
+                                                        {right !== undefined && <span className="sr-only">{right ? "Correct: " : "Incorrect: "}</span>}
+                                                        {text || "Not answered"}
+                                                    </span>
+                                                </span>
+                                                {right === false && (
+                                                    <span className="pl-7 text-sm text-tertiary">Correct answer: {correctLabels(q).join(", ")}</span>
+                                                )}
                                             </li>
                                         );
                                     })}
@@ -349,6 +484,71 @@ export const ResultsPage = ({ survey, responses, onExit, onEditSurvey, onExport,
 
             {toast && <Toast id={toast.id} message={toast.message} onDismiss={() => setToast(null)} />}
         </div>
+    );
+};
+
+const ResultBadge = ({ result }: { result?: QuizResult }) =>
+    result ? (
+        <Badge size="sm" color={result.score.passed ? "success" : "gray"} dot>
+            {result.score.passed ? "Passed" : "Not passed"}
+        </Badge>
+    ) : (
+        <span className="text-sm text-quaternary">–</span>
+    );
+
+/**
+ * How complete responses scored, best first. A labelled pass-mark line splits
+ * passing from failing scores, and passing bars say "Pass", so it never relies
+ * on colour alone.
+ */
+const ScoreDistributionCard = ({ survey, responses }: { survey: Survey; responses: ResultResponse[] }) => {
+    const { passMark, buckets, scored } = scoreDistribution(survey, responses);
+    const rows = [...buckets].reverse();
+    const passed = buckets.filter((b) => b.passes).reduce((s, b) => s + b.count, 0);
+    const firstFail = rows.findIndex((b) => !b.passes);
+    return (
+        <section
+            aria-labelledby="score-distribution"
+            className="flex flex-col gap-4 rounded-2xl border border-secondary bg-primary p-5 shadow-xs lg:col-span-2"
+        >
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <h3 id="score-distribution" className="text-md font-semibold text-primary">
+                    Score distribution
+                </h3>
+                <span className="text-xs text-tertiary">
+                    {scored.toLocaleString("en-US")} scored · {passed.toLocaleString("en-US")} passed ({scored ? Math.round((passed / scored) * 100) : 0}%)
+                </span>
+            </div>
+            <ul className="flex flex-col gap-2.5">
+                {rows.map((b, i) => (
+                    <li key={b.label} className="flex flex-col gap-2.5">
+                        {i === firstFail && i > 0 && (
+                            <div className="flex items-center gap-3 text-xs font-semibold text-tertiary" role="separator" aria-label={`Pass mark ${passMark}%`}>
+                                <span aria-hidden="true" className="h-px flex-1 border-t border-dashed border-primary" />
+                                Pass mark {passMark}%
+                                <span aria-hidden="true" className="h-px flex-1 border-t border-dashed border-primary" />
+                            </div>
+                        )}
+                        <div className="grid grid-cols-[5.5rem_minmax(0,1fr)_6.5rem] items-center gap-3 text-sm">
+                            <span className="flex items-center gap-1.5 text-secondary">
+                                {b.label}
+                                {b.passes && <span className="text-xs font-semibold text-success-primary">Pass</span>}
+                            </span>
+                            <span aria-hidden="true" className="h-5 overflow-hidden rounded-md bg-secondary">
+                                <span
+                                    className={cx("block h-full rounded-md", b.passes ? "bg-success-solid" : "bg-utility-gray-400")}
+                                    style={{ width: `${b.pct}%` }}
+                                />
+                            </span>
+                            <span className="text-right text-tertiary tabular-nums">
+                                <span className="font-semibold text-primary">{b.pct}%</span> · {b.count.toLocaleString("en-US")}
+                                <span className="sr-only"> responses</span>
+                            </span>
+                        </div>
+                    </li>
+                ))}
+            </ul>
+        </section>
     );
 };
 

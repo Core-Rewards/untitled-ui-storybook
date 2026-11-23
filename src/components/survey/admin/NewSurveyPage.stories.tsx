@@ -14,6 +14,7 @@ const meta = {
                 component: [
                     "New survey (A2) as a page in the admin shell, with the template library merged in.",
                     "",
+                    "- **Survey or quiz** first. It's fixed once created, and the templates and copies below follow it.",
                     "- **Start blank**, pick a **template** (search, filter by category; the three starters come first), or **copy a survey** this program has run (questions, logic, settings and translations, never responses).",
                     "- The right panel previews the choice (a template's questions, or the survey being copied), suggests a name until the admin types their own, and sets the base language.",
                     "- **Create survey** returns a `NewSurveyRequest`; the builder opens on the Questions step. **Cancel** and the breadcrumb go back to the list.",
@@ -48,5 +49,8 @@ export const CopyASurvey: Story = { name: "Copy a survey", args: { defaultSelect
 
 /** A program with no surveys yet: the copy section is hidden. */
 export const FirstSurvey: Story = { name: "First survey (nothing to copy)", args: { surveys: [] } };
+
+/** Quiz chosen: quiz templates (right answers marked) and quizzes this program has run. */
+export const Quiz: Story = { args: { defaultKind: "quiz" } };
 
 export const Phone: Story = { globals: { viewport: { value: "phone", isRotated: false } } };
